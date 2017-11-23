@@ -29,6 +29,10 @@ struct cl_options {
     // Network type (default is rgraph):
     bool all_to_all = false;
     bool ring = false;
+    bool my_first_recipe = false;
+
+    double my_first_recipe_parameter = 0.0;
+
 
     // Simulation running parameters:
     double tfinal = 100.;

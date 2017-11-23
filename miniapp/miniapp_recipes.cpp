@@ -3,6 +3,8 @@
 #include <vector>
 #include <utility>
 
+#include <iostream>
+
 #include <cell.hpp>
 #include <dss_cell_description.hpp>
 #include <rss_cell.hpp>
@@ -354,6 +356,65 @@ std::unique_ptr<recipe> make_basic_kgraph_recipe(
         probe_distribution pdist)
 {
     return std::unique_ptr<recipe>(new basic_kgraph_recipe(ncell, param, pdist));
+}
+
+class my_first_recipe : public basic_cell_recipe {
+public:
+    my_first_recipe(cell_gid_type ncell,
+        basic_recipe_param param,
+        probe_distribution pdist = probe_distribution{}) :
+        basic_cell_recipe(ncell, std::move(param), std::move(pdist))
+    {
+        // Cells are not allowed to connect to themselves; hence there must be least two cells
+        // to build a connected network.
+        if (ncell<2) {
+            throw std::runtime_error("A randomly connected network must have at least 2 cells.");
+        }
+    }
+
+    std::vector<cell_connection> connections_on(cell_gid_type i) const override {
+        std::vector<cell_connection> conns;
+
+        // The rss_cell does not have inputs
+        if (i == ncell_) {
+            std::cout << "We are in 'My first recipe (tm)" << std::endl;
+
+            std::cout << "We have retrieved my_first_recipe_parameter from config: "
+                << param_.my_first_recipe_parameter << std::endl;
+            return conns;
+        }
+        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
+        auto source_gen = std::mt19937(i * 123 + 457); // ditto
+
+        std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_ - 2);
+
+        for (unsigned t = 0; t<param_.num_synapses; ++t) {
+            auto source = source_distribution(source_gen);
+            if (source >= i) ++source;
+
+            cell_connection cc = draw_connection_params(conn_param_gen);
+            cc.source = { source, 0 };
+            cc.dest = { i, t };
+            conns.push_back(cc);
+
+            // The rss_cell spikes at t=0, with these connections it looks like
+            // (source % 20) == 0 spikes at that moment.
+            if (source % 20 == 0) {
+                cc.source = { ncell_, 0 };
+                conns.push_back(cc);
+            }
+        }
+
+        return conns;
+    }
+};
+
+std::unique_ptr<recipe> make_my_first_recipe(
+    cell_gid_type ncell,
+    basic_recipe_param param,
+    probe_distribution pdist)
+{
+    return std::unique_ptr<recipe>(new my_first_recipe(ncell, param, pdist));
 }
 
 } // namespace arb

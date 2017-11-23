@@ -218,6 +218,8 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
     // TODO: Put all recipe parameters in the recipes file
     p.num_synapses = options.all_to_all? options.cells-1: options.synapses_per_cell;
     p.synapse_type = options.syn_type;
+    p.my_first_recipe_parameter = options.my_first_recipe_parameter;
+
 
     // Parameters for spike input from file
     if (options.spike_file_input) {
@@ -229,6 +231,9 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
     }
     else if (options.ring) {
         return make_basic_ring_recipe(options.cells, p, pdist);
+    }
+    else if (options.my_first_recipe) {
+        return make_my_first_recipe(options.cells, p, pdist);
     }
     else {
         return make_basic_rgraph_recipe(options.cells, p, pdist);
