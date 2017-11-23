@@ -379,6 +379,8 @@ public:
         if (i == ncell_) {
             std::cout << "We are in 'My first recipe (tm)" << std::endl;
 
+            std::cout << "We have retrieved my_first_recipe_parameter from config: "
+                << param_.my_first_recipe_parameter << std::endl;
             return conns;
         }
         auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
