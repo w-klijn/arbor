@@ -230,6 +230,9 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
     else if (options.ring) {
         return make_basic_ring_recipe(options.cells, p, pdist);
     }
+    else if (options.my_first_recipe) {
+        return make_my_first_recipe(options.cells, p, pdist);
+    }
     else {
         return make_basic_rgraph_recipe(options.cells, p, pdist);
     }

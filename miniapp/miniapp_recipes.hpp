@@ -60,4 +60,9 @@ std::unique_ptr<recipe> make_basic_rgraph_recipe(
         basic_recipe_param param,
         probe_distribution pdist = probe_distribution{});
 
+std::unique_ptr<recipe> make_my_first_recipe(
+    cell_gid_type ncell,
+    basic_recipe_param param,
+    probe_distribution pdist = probe_distribution{});
+
 } // namespace arb

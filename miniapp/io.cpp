@@ -235,6 +235,10 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
                     update_option(options.morph_rr, fopts, "morph_rr");
                     update_option(options.report_compartments, fopts, "report_compartments");
 
+                    // Options added for the 2d network. Currently not on command line.
+                    //update_option(options.my_first_recipe, fopts, "my_first_recipe");
+                    update_option(options.my_first_recipe, fopts, "my_first_recipe");
+
                     // Parameters for spike output
                     update_option(options.spike_file_output, fopts, "spike_file_output");
                     if (options.spike_file_output) {
@@ -329,6 +333,7 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
                 fopts["probe_ratio"] = options.probe_ratio;
                 fopts["probe_soma_only"] = options.probe_soma_only;
                 fopts["trace_prefix"] = options.trace_prefix;
+                fopts["my_first_recipe"] = options.my_first_recipe;
                 if (options.trace_max_gid) {
                     fopts["trace_max_gid"] = options.trace_max_gid.get();
                 }
