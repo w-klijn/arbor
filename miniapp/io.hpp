@@ -28,7 +28,7 @@ struct cl_options {
 
     // Network type (default is rgraph):
     bool all_to_all = false;
-    bool ring = false;
+    bool ring = true;
     bool my_first_recipe = false;
 
     double my_first_recipe_parameter = 0.0;
@@ -42,7 +42,7 @@ struct cl_options {
 
     // Probe/sampling specification.
     double sample_dt = 0.1;
-    bool probe_soma_only = false;
+    bool probe_soma_only = false; //Default was false
     double probe_ratio = 0;  // Proportion of cells to probe.
     std::string trace_prefix = "trace_";
     util::optional<unsigned> trace_max_gid; // Only make traces up to this gid.
