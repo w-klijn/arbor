@@ -14,10 +14,10 @@
 namespace arb {
 
 struct probe_distribution {
-    float proportion = 1.f; // what proportion of cells should get probes?
+    float proportion = 1.f; // what proportion of cells should get probes? (1 would mean all of them)
     bool all_segments = true;    // false => soma only
     bool membrane_voltage = true;
-    bool membrane_current = true;
+    bool membrane_current = false; // true: current probe!
 };
 
 struct basic_recipe_param {
@@ -33,12 +33,12 @@ struct basic_recipe_param {
     std::string synapse_type = "expsyn";
     float min_connection_delay_ms = 20.0;
     float mean_connection_delay_ms = 20.75;
-    float syn_weight_per_cell = 0.3;
+    float syn_weight_per_cell = 0.99;
 
     morphology_pool morphologies = default_morphology_pool;
 
     // If true, iterate through morphologies rather than select randomly.
-    bool morphology_round_robin = false;
+    bool morphology_round_robin = true;
 
     //
     double my_first_recipe_parameter = 0.0;
@@ -67,5 +67,10 @@ std::unique_ptr<recipe> make_my_first_recipe(
     cell_gid_type ncell,
     basic_recipe_param param,
     probe_distribution pdist = probe_distribution{});
+
+std::unique_ptr<recipe> make_single_cell_recipe(
+        cell_gid_type ncell,
+        basic_recipe_param param,
+        probe_distribution pdist = probe_distribution{});
 
 } // namespace arb
