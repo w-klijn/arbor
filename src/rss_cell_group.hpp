@@ -7,6 +7,8 @@
 #include <rss_cell.hpp>
 #include <util/unique_any.hpp>
 
+#include <iostream>
+
 namespace arb {
 
 /// Cell group implementing RSS cells.
@@ -35,14 +37,18 @@ public:
     void set_binning_policy(binning_kind policy, time_type bin_interval) override {}
 
     void advance(epoch ep, time_type dt, const event_lane_subrange& events) override {
-        for (const auto& cell: cells_) {
-            auto t = std::max(cell.start_time, time_);
+        for (auto& cell: cells_) {
+            auto t = std::max(cell.start_time, cell.t);
             auto t_end = std::min(cell.stop_time, ep.tfinal);
 
             while (t < t_end) {
                 spikes_.push_back({{cell.gid, 0}, t});
+                std::cout << t;
                 t += cell.period;
+                std::cout << " +" << cell.period << " = " << t <<  std::endl;
             }
+            // store the cell specific time
+            cell.t = t;
         }
         time_ = ep.tfinal;
     }
@@ -71,6 +77,7 @@ private:
         {}
 
         cell_gid_type gid;
+        time_type t;
     };
 
     // RSS cell descriptions.

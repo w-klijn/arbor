@@ -84,19 +84,17 @@ public:
     }
 
     cell_size_type num_cells() const override {
-        return ncell_ + 1;  // We automatically add a fake cell to each recipe!
+        return ncell_ + 2;  // We automatically add two fake cells to each recipe!
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
         // The last 'cell' is a spike source cell. Either a regular spiking
         // or a spikes from file.
-        if (i == ncell_) {
-            if (param_.input_spike_path) {
-                auto spike_times = io::get_parsed_spike_times_from_path(param_.input_spike_path.get());
-                return util::unique_any(dss_cell_description(spike_times));
-            }
-
-            return util::unique_any(rss_cell{12.0, 0.1, 12.1});
+        if (i == 1) {
+            return util::unique_any(rss_cell{200.0, 100.0, 500.0});
+        }
+        if (i == 2) {
+            return util::unique_any(rss_cell{ 500.0, 100.0, 1000.0 });
         }
 
         auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
@@ -147,11 +145,7 @@ public:
 
     cell_kind get_cell_kind(cell_gid_type i) const override {
         // The last 'cell' is a rss_cell with one spike at t=0
-        if (i == ncell_) {
-            if (param_.input_spike_path) {
-                return cell_kind::data_spike_source;
-            }
-
+        if (i > 0) {
             return cell_kind::regular_spike_source;
         }
         return cell_kind::cable1d_neuron;
@@ -404,7 +398,7 @@ public:
                 conns.push_back(cc);
             }
         }
-	//std::cout << "The list of connections is stored as " << conns;
+    //std::cout << "The list of connections is stored as " << conns;
         return conns;
     }
 };
@@ -425,25 +419,34 @@ public:
                        probe_distribution pdist = probe_distribution{}) :
         basic_cell_recipe(ncell, std::move(param), std::move(pdist))
     {
-    if (ncell != 1){
-        throw std::runtime_error("A single cell network can have only 1 cell");
-        }
+    //if (ncell != 1){
+    //    throw std::runtime_error("A single cell network can have only 1 cell");
+    //    }
     }
+
+
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
+
+        std::cout << "Connection on: " << i << std::endl;
         std::vector<cell_connection> conns;
-        if (i == ncell_) {
-            std::cout << "We are in Single cell recipe" << std::endl;
-            
+        if (i > 0) {
+            std::cout << "We are in rss cell recipe" << std::endl;
+
             //std::cout << "We have retrieved my_first_recipe_parameter from config: "
                 //<< param_.my_first_recipe_parameter << std::endl;
             return conns;
         }
-    //deviating very little from the other implementations
-    auto gen = std::mt19937(i);
-    cell_connection cc = draw_connection_params(gen);
-    cc.source = {ncell_, 0}; 
-    conns.push_back(cc);
-    return conns;
+        //deviating very little from the other implementations
+        auto gen = std::mt19937(i);
+
+        cell_connection cc({ 0, 0 }, { 0, 0 }, 0.0002, 2.0);
+        cc.source = {1, 0};
+        conns.push_back(cc);
+        cell_connection cc2({ 0, 0 }, { 0, 0 }, -0.0005, 2.0);
+        cc2.source = { 2, 0 };
+        conns.push_back(cc2);
+
+        return conns;
     }
 };
 
