@@ -1,173 +1,277 @@
+#include <cmath>
+#include <exception>
 #include <iostream>
 #include <fstream>
-#include <random>
+#include <memory>
 #include <vector>
-#include <utility>
 
-#include <tinyopt.hpp>
-#include <util/optional.hpp>
+#include <json/json.hpp>
+
 #include <common_types.hpp>
+#include <communication/communicator.hpp>
+#include <communication/global_policy.hpp>
+#include <cell.hpp>
+#include <fvm_multicell.hpp>
+#include <hardware/gpu.hpp>
+#include <hardware/node_info.hpp>
+#include <io/exporter_spike_file.hpp>
+#include <load_balance.hpp>
+#include <model.hpp>
+#include <profiling/profiler.hpp>
+#include <profiling/meter_manager.hpp>
+#include <sampling.hpp>
+#include <schedule.hpp>
+#include <threading/threading.hpp>
+#include <util/any.hpp>
+#include <util/config.hpp>
+#include <util/debug.hpp>
+#include <util/ioutil.hpp>
+#include <util/nop.hpp>
 
-#include "../con_gen/connection_generator.hpp"
-#include "../con_gen/con_gen_utils.hpp"
+#include "../miniapp/io.hpp"
+#include "../miniapp/miniapp_recipes.hpp"
+#include "../miniapp/trace.hpp"
 
+using namespace arb;
 
-namespace to = arb::to;
-using arb::util::optional;
+using util::any_cast;
+using util::make_span;
 
-const char* usage_str =
-"[OPTION]...\n"
-"\n"
-" A small validation program for validating the generation of synaptic connection \n"
-" Between 2d sheets of cells on a grid, with optionally a periodic border. Synapses are output\n"
-" to file and have a configurable weight and delay distribution. The dimensions of the \n "
-" populations can have arbitrary dimensions, although projecting on a population\n"
-" With a different side ratio is *not* tested\n"
-"\n"
-" The default settings of this app with use a default projection between two\n"
-" 100 * 100 populations with periodic borders. and output the synapse to synapses.dat\n"
-" This output can be parsed with the default parse_and_plot.py python script \n"
-" When using your own population you have to supply this with commandline of the python script !! \n"
-"\n"
-"\n"
-"   [OPTION] \n"
-"  --populations=path     path with config for populations  \n"
-"  --projections=path     path with config for projections between the populations\n"
-"       (These two path must both be set or not set at all)\n "
-"  --gids=path            path with config for gids we want the synapse to output for\n"
-"  --output=path          output spikes to this path\n"
-"\n"
-"   When an error of parsing of config files occurs the app will fail silently (or loudly)! \n"
-"\n"
-"   *** configuration file syntax  ***\n"
-"   * population config: \n"
-"   The lines are parsed, as comma separated values: \n"
-"   cell_on_side_x, cell_on_side_y, periodic  \n"
-"   with types:\n"
-"   unsigned, unsigned, 0 -or- 1 \n"
-"\n"
-"   * projection config: \n"
-"   The lines are parsed, as comma separated values: \n"
-"   idx_pre_polation, idx_post_polation, count, sd\n"
-"   mean_weight, weight_sd, min_delay, delay_per_sd\n"
-"  with types:\n"
-"   unsigned, unsigned, unsigned, float, float, float, float, float\n"
-"\n"
-"   * gids config: \n"
-"   The lines are parsed, as comma separated values: \n"
-"   IF a line starts with a comma, it is parsed as a comma separated list of gids\n"
-"   finished with a '<' character\n"
-"   If a line starts with a - (or any other character). It is parsed as two\n"
-"   comma separated gids and assumed to be a range\n"
-"   Types of parsed numbers is unsigned\n"
-"\n"
-"  *** projection parameters explanation: ***\n"
-"  - sd             sd of the normal distributed used to sample the pre_synaptic\n"
-"                   The dimensions of the pre-population is sampled as if it has size 1.0 * 1.0\n"
-"                   (ration of x and y is accounted for.)\n"
-"  - count          Number of synapse to makee. When sampling from a non periodic population\n"
-"                   this count can be lower (akin with a sample in-vitro) \n"
-" - weight_mean     Mean synaptic weight for the created synapse\n"
-"  - weight_sd      Standard deviation around mean for sampling the weights\n"
-"  - delay_min      Minimal delay of the created synapse\n"
-"  - delay_per_sd   Delay increase by sd distance between neurons\n"
-"\n"
-;
+using global_policy = communication::global_policy;
+using file_export_type = io::exporter_spike_file<global_policy>;
+using communicator_type = communication::communicator<communication::global_policy>;
+
+void banner(hw::node_info);
+std::unique_ptr<recipe> make_recipe(const io::cl_options&, const probe_distribution&);
+sample_trace make_trace(const probe_info& probe);
+
+void report_compartment_stats(const recipe&);
 
 int main(int argc, char** argv) {
-    // options
-    optional<std::string> population_cfg_path;
-    optional<std::string> projection_cfg_path;
-
-    optional<std::string> gid_path;
-    std::string output_path = "./synapses.dat";
+    communication::global_policy_guard global_guard(argc, argv);
 
     try {
-        auto arg = argv + 1;
-        while (*arg) {
-            if (auto o = to::parse_opt<std::string>(arg, 0, "populations")) {
-                population_cfg_path = *o;
+        util::meter_manager meters;
+        meters.start();
+
+        std::cout << util::mask_stream(global_policy::id() == 0);
+        // read parameters
+        io::cl_options options = io::read_options(argc, argv, global_policy::id() == 0);
+
+        // If compiled in dry run mode we have to set up the dry run
+        // communicator to simulate the number of ranks that may have been set
+        // as a command line parameter (if not, it is 1 rank by default)
+        if (global_policy::kind() == communication::global_policy_kind::dryrun) {
+            // Dry run mode requires that each rank has the same number of cells.
+            // Here we increase the total number of cells if required to ensure
+            // that this condition is satisfied.
+            auto cells_per_rank = options.cells / options.dry_run_ranks;
+            if (options.cells % options.dry_run_ranks) {
+                ++cells_per_rank;
+                options.cells = cells_per_rank*options.dry_run_ranks;
             }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "projections")) {
-                projection_cfg_path = *o;
-            }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "gids")) {
-                gid_path = *o;
-            }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "output")) {
-                output_path = *o;
-            }
-            else if (auto o = to::parse_opt(arg, 'h', "help")) {
-                to::usage(argv[0], usage_str);
-                return 0;
-            }
-            else {
-                throw to::parse_opt_error(*arg, "unrecognized option");
+
+            global_policy::set_sizes(options.dry_run_ranks, cells_per_rank);
+        }
+
+        // Use a node description that uses the number of threads used by the
+        // threading back end, and 1 gpu if available.
+        hw::node_info nd;
+        nd.num_cpu_cores = threading::num_threads();
+        nd.num_gpus = hw::num_gpus()>0 ? 1 : 0;
+        banner(nd);
+
+        meters.checkpoint("setup");
+
+        // determine what to attach probes to
+        probe_distribution pdist;
+        pdist.proportion = options.probe_ratio;
+        pdist.all_segments = !options.probe_soma_only;
+
+        auto recipe = make_recipe(options, pdist);
+        if (options.report_compartments) {
+            report_compartment_stats(*recipe);
+        }
+
+        auto register_exporter = [](const io::cl_options& options) {
+            return
+                util::make_unique<file_export_type>(
+                    options.file_name, options.output_path,
+                    options.file_extension, options.over_write);
+        };
+
+        auto decomp = partition_load_balance(*recipe, nd);
+        model m(*recipe, decomp);
+
+        // Set up samplers for probes on local cable cells, as requested
+        // by command line options.
+        std::vector<sample_trace> sample_traces;
+        for (const auto& g : decomp.groups) {
+            if (g.kind == cable1d_neuron) {
+                for (auto gid : g.gids) {
+                    if (options.trace_max_gid && gid>*options.trace_max_gid) {
+                        continue;
+                    }
+
+                    for (cell_lid_type j : make_span(0, recipe->num_probes(gid))) {
+                        sample_traces.push_back(make_trace(recipe->get_probe({ gid, j })));
+                    }
+                }
             }
         }
+
+        auto ssched = regular_schedule(options.sample_dt);
+        for (auto& trace : sample_traces) {
+            m.add_sampler(one_probe(trace.probe_id), ssched, make_simple_sampler(trace.samples));
+        }
+
+        // Specify event binning/coalescing.
+        auto binning_policy =
+            options.bin_dt == 0 ? binning_kind::none :
+            options.bin_regular ? binning_kind::regular :
+            binning_kind::following;
+
+        m.set_binning_policy(binning_policy, options.bin_dt);
+
+        // Initialize the spike exporting interface
+        std::unique_ptr<file_export_type> file_exporter;
+        if (options.spike_file_output) {
+            if (options.single_file_per_rank) {
+                file_exporter = register_exporter(options);
+                m.set_local_spike_callback(
+                    [&](const std::vector<spike>& spikes) {
+                    file_exporter->output(spikes);
+                });
+            }
+            else if (communication::global_policy::id() == 0) {
+                file_exporter = register_exporter(options);
+                m.set_global_spike_callback(
+                    [&](const std::vector<spike>& spikes) {
+                    file_exporter->output(spikes);
+                });
+            }
+        }
+
+        meters.checkpoint("model-init");
+
+        // run model
+        m.run(options.tfinal, options.dt);
+
+        meters.checkpoint("model-simulate");
+
+        // output profile and diagnostic feedback
+        util::profiler_output(0.001, options.profile_only_zero);
+        std::cout << "there were " << m.num_spikes() << " spikes\n";
+
+        // save traces
+        auto write_trace = options.trace_format == "json" ? write_trace_json : write_trace_csv;
+        for (const auto& trace : sample_traces) {
+            write_trace(trace, options.trace_prefix);
+        }
+
+        auto report = util::make_meter_report(meters);
+        std::cout << report;
+        if (global_policy::id() == 0) {
+            std::ofstream fid;
+            fid.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+            fid.open("meters.json");
+            fid << std::setw(1) << util::to_json(report) << "\n";
+        }
     }
-    catch (to::parse_opt_error& e) {
-        std::cerr << argv[0] << ": " << e.what() << "\n";
-        std::cerr << "Try '" << argv[0] << " --help' for more information.\n";
-        std::exit(2);
+    catch (io::usage_error& e) {
+        // only print usage/startup errors on master
+        std::cerr << util::mask_stream(global_policy::id() == 0);
+        std::cerr << e.what() << "\n";
+        return 1;
     }
     catch (std::exception& e) {
-        std::cerr << "caught exception: " << e.what() << "\n";
-        std::exit(1);
+        std::cerr << e.what() << "\n";
+        return 2;
     }
-
-    // If we have a supplied populations or connectome both should be supplied
-    if (population_cfg_path || projection_cfg_path) {
-        if (!population_cfg_path && projection_cfg_path) {
-            throw con_gen_util::con_gen_error("population_cfg_path or projection_cfg_path alone is not valid.");
-        }
-    }
-
-    // Parse the populations from file or use the default
-    std::vector<arb_con_gen::population> populations;
-    if (population_cfg_path) {
-        populations = con_gen_util::parse_populations_from_path(population_cfg_path.value());
-    }
-    else {
-        populations = con_gen_util::default_populations();
-    }
-
-    // Parse the connectome from file or use the default
-    std::vector<arb_con_gen::projection>  connectome;
-    if (projection_cfg_path) {
-        connectome = con_gen_util::parse_projections_from_path(projection_cfg_path.value());
-    }
-    else {
-        connectome = con_gen_util::default_connectome();
-    }
-
-    // gids we want to poll
-    std::vector<arb::cell_gid_type> gids;
-    if (gid_path) {
-        gids = con_gen_util::parse_gids_from_path(gid_path.value());
-    }
-    else {
-        gids = con_gen_util::default_gids();
-    }
-
-    // The connection generator
-    arb_con_gen::connection_generator gen(populations, connectome);
-
-    std::ofstream outfile(output_path);
-
-    if (outfile) {
-        // Pick some neurons on the borders to see correct periodic boundary behaviour
-        for (auto gid : gids)
-        {
-            auto synapses = gen.synapses_on(gid);
-            for (auto synapse : synapses) {
-                outfile << synapse.gid << "," << synapse.weight << "," << synapse.delay << "\n";
-            }
-        }
-    }
-    else {
-        throw con_gen_util::con_gen_error("Could not open supplied output_path");
-    }
-    std::cout << "Produced connections! " << std::endl;
     return 0;
+}
+
+void banner(hw::node_info nd) {
+    std::cout << "==========================================\n";
+    std::cout << "  Arbor miniapp\n";
+    std::cout << "  - distributed : " << global_policy::size()
+        << " (" << std::to_string(global_policy::kind()) << ")\n";
+    std::cout << "  - threads     : " << nd.num_cpu_cores
+        << " (" << threading::description() << ")\n";
+    std::cout << "  - gpus        : " << nd.num_gpus << "\n";
+    std::cout << "==========================================\n";
+}
+
+std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_distribution& pdist) {
+    basic_recipe_param p;
+
+    if (options.morphologies) {
+        std::cout << "loading morphologies...\n";
+        p.morphologies.clear();
+        load_swc_morphology_glob(p.morphologies, options.morphologies.value());
+        std::cout << "loading morphologies: " << p.morphologies.size() << " loaded.\n";
+    }
+    p.morphology_round_robin = options.morph_rr;
+
+    p.num_compartments = options.compartments_per_segment;
+
+    // TODO: Put all recipe parameters in the recipes file
+    p.num_synapses = options.all_to_all ? options.cells - 1 : options.synapses_per_cell;
+    p.synapse_type = options.syn_type;
+
+    // Parameters for spike input from file
+    if (options.spike_file_input) {
+        p.input_spike_path = options.input_spike_path;
+    }
+
+    if (options.all_to_all) {
+        return make_basic_kgraph_recipe(options.cells, p, pdist);
+    }
+    else if (options.ring) {
+        return make_basic_ring_recipe(options.cells, p, pdist);
+    }
+    else {
+        return make_basic_rgraph_recipe(options.cells, p, pdist);
+    }
+}
+
+sample_trace make_trace(const probe_info& probe) {
+    std::string name = "";
+    std::string units = "";
+
+    auto addr = any_cast<cell_probe_address>(probe.address);
+    switch (addr.kind) {
+    case cell_probe_address::membrane_voltage:
+        name = "v";
+        units = "mV";
+        break;
+    case cell_probe_address::membrane_current:
+        name = "i";
+        units = "mA/cm²";
+        break;
+    default:;
+    }
+    name += addr.location.segment ? "dend" : "soma";
+
+    return sample_trace{ probe.id, name, units };
+}
+
+void report_compartment_stats(const recipe& rec) {
+    std::size_t ncell = rec.num_cells();
+    std::size_t ncomp_total = 0;
+    std::size_t ncomp_min = std::numeric_limits<std::size_t>::max();
+    std::size_t ncomp_max = 0;
+
+    for (std::size_t i = 0; i<ncell; ++i) {
+        std::size_t ncomp = 0;
+        auto c = rec.get_cell_description(i);
+        if (auto ptr = any_cast<cell>(&c)) {
+            ncomp = ptr->num_compartments();
+        }
+        ncomp_total += ncomp;
+        ncomp_min = std::min(ncomp_min, ncomp);
+        ncomp_max = std::max(ncomp_max, ncomp);
+    }
+
+    std::cout << "compartments/cell: min=" << ncomp_min << "; max=" << ncomp_max << "; mean=" << (double)ncomp_total / ncell << "\n";
 }

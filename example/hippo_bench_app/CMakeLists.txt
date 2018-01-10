@@ -1,5 +1,9 @@
 set(HIPPO_BENCH_SOURCES
     hippo_bench.cpp
+	../miniapp/io.cpp
+    ../miniapp/miniapp_recipes.cpp
+    ../miniapp/morphology_pool.cpp
+    ../miniapp/trace.cpp
 )
 
 add_executable(hippo_bench.exe ${HIPPO_BENCH_SOURCES})
