@@ -1,7 +1,7 @@
 set(HIPPO_BENCH_SOURCES
     hippo_bench.cpp
+	hippo_recipes.cpp
 	../miniapp/io.cpp
-    ../miniapp/miniapp_recipes.cpp
     ../miniapp/morphology_pool.cpp
     ../miniapp/trace.cpp
 )

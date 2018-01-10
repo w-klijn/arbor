@@ -29,8 +29,9 @@
 #include <util/nop.hpp>
 
 #include "../miniapp/io.hpp"
-#include "../miniapp/miniapp_recipes.hpp"
 #include "../miniapp/trace.hpp"
+
+#include "hippo_recipes.hpp"
 
 using namespace arb;
 
@@ -224,15 +225,7 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
         p.input_spike_path = options.input_spike_path;
     }
 
-    if (options.all_to_all) {
-        return make_basic_kgraph_recipe(options.cells, p, pdist);
-    }
-    else if (options.ring) {
-        return make_basic_ring_recipe(options.cells, p, pdist);
-    }
-    else {
-        return make_basic_rgraph_recipe(options.cells, p, pdist);
-    }
+    return make_hippo_recipe(options.cells, p, pdist);
 }
 
 sample_trace make_trace(const probe_info& probe) {
