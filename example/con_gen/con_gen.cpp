@@ -126,17 +126,16 @@ int main(int argc, char** argv) {
     // Parse the populations from file or use the default
     std::vector<arb_con_gen::population> populations;
     if (population_cfg_path) {
-        populations = con_gen_util::parse_populations_from_path(population_cfg_path.get());
+        populations = con_gen_util::parse_populations_from_path(population_cfg_path.value());
     }
     else {
         populations = con_gen_util::default_populations();
     }
 
-
     // Parse the connectome from file or use the default
     std::vector<arb_con_gen::projection>  connectome;
     if (projection_cfg_path) {
-        connectome = con_gen_util::parse_projections_from_path(projection_cfg_path.get());
+        connectome = con_gen_util::parse_projections_from_path(projection_cfg_path.value());
     }
     else {
         connectome = con_gen_util::default_connectome();
@@ -145,15 +144,12 @@ int main(int argc, char** argv) {
     // gids we want to poll
     std::vector<arb::cell_gid_type> gids;
     if (gid_path) {
-        gids = con_gen_util::parse_gids_from_path(gid_path.get());
+        gids = con_gen_util::parse_gids_from_path(gid_path.value());
     }
     else {
-        gids = { 10320, 12003, 17997, 19580,
-            15070, 5030,  // These two are shifted !!
-            320, 2003, 7997, 9580, 5500 };
+        gids = con_gen_util::default_gids();
     }
-
-
+    std::cout << "Debug 3" << std::endl;
     // The connection generator
     arb_con_gen::connection_generator gen(populations, connectome);
 
@@ -163,6 +159,7 @@ int main(int argc, char** argv) {
         // Pick some neurons on the borders to see correct periodic boundary behaviour
         for (auto gid : gids)
         {
+            std::cout << gid << std::endl;
             auto synapses = gen.synapses_on(gid);
             for (auto synapse : synapses) {
                 outfile << synapse.gid << "," << synapse.weight << "," << synapse.delay << "\n";
@@ -172,6 +169,6 @@ int main(int argc, char** argv) {
     else {
         throw con_gen_util::con_gen_error("Could not open supplied output_path");
     }
-
+    std::cout << "Produced connections! " << std::endl;
     return 0;
 }

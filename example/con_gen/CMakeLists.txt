@@ -10,8 +10,8 @@ target_link_libraries(con_gen.exe LINK_PUBLIC ${EXTERNAL_LIBRARIES})
 set_target_properties(
     con_gen.exe
     PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/miniapps/con_gen"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/example/con_gen"
 )
 
 install(FILES parse_and_plot.py
-        DESTINATION "${CMAKE_BINARY_DIR}/miniapps/con_gen")
+        DESTINATION "${CMAKE_BINARY_DIR}/example/con_gen")

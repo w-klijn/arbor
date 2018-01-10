@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sstream>
 #include <math.h>
+#include <regex>
 #include <tuple>
 #include <vector>
 #include <utility>
@@ -39,7 +40,7 @@ namespace con_gen_util {
     // unsigned, unsigned, 0 -or- 1
     std::vector<arb_con_gen::population> parse_populations_from_path(std::string path) {
         std::ifstream infile(path);
-
+        std::cout << "We are here" << std::endl;
         arb::cell_gid_type x_dim;
         arb::cell_gid_type y_dim;
         bool periodic;
@@ -47,6 +48,33 @@ namespace con_gen_util {
 
         std::vector<arb_con_gen::population> populations;
 
+        //std::regex e;
+        //std::smatch match;
+        //e = "^\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*((?i)(true|false))\\s*";  // usigned , usigned , true
+        //std::cout << "debug" << std::endl;
+        //if (infile) {
+        //    std::string line;
+
+        //    while (std::getline(infile, line)) {
+        //        std::istringstream iss(line);
+
+        //        std::cout << "debug" << std::endl;
+        //        if (std::regex_search(line, match, e))
+        //        {
+        //            std::cout << "match: " << match[0] << '\n';
+        //            std::cout << "match: " << match[1] << '\n';
+        //            std::cout << "match: " << match[2] << '\n';
+
+        //        }
+
+
+        //        populations.push_back({ x_dim, y_dim, periodic });
+
+        //    }
+        //}
+
+
+        std::cout << "Debug 1" << std::endl;
         if (infile) {
             std::string line;
             while (std::getline(infile, line)){
@@ -60,7 +88,7 @@ namespace con_gen_util {
         else {
             throw con_gen_error("Could not open supplied population config");
         }
-
+        std::cout << "Debug 2" << std::endl;
         return populations;
     }
 
@@ -169,6 +197,17 @@ namespace con_gen_util {
         default_populations.push_back({ 100, 100, true });
 
         return default_populations;
+    }
+
+    // Default Gids:
+    // Selected such that they are on the border of the sheet. This illustrates
+    // The periodic border optimally. Most gids are paired such they the
+    // presynaptic neurons arbors overlap
+    // 15070, 5030 are shiften in relationship to each other.
+    std::vector<arb::cell_gid_type> default_gids() {
+        return { 10320, 12003, 17997, 19580,
+            15070, 5030,  // These two are shifted !!
+            320, 2003, 7997, 9580, 5500 };
     }
 
     // Default connectome
