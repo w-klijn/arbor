@@ -40,7 +40,6 @@ namespace con_gen_util {
     // unsigned, unsigned, 0 -or- 1
     std::vector<arb_con_gen::population> parse_populations_from_path(std::string path) {
         std::ifstream infile(path);
-        std::cout << "We are here" << std::endl;
         arb::cell_gid_type x_dim;
         arb::cell_gid_type y_dim;
         bool periodic;
@@ -48,6 +47,7 @@ namespace con_gen_util {
 
         std::vector<arb_con_gen::population> populations;
 
+        // Regex parsing start
         //std::regex e;
         //std::smatch match;
         //e = "^\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*((?i)(true|false))\\s*";  // usigned , usigned , true
@@ -74,7 +74,6 @@ namespace con_gen_util {
         //}
 
 
-        std::cout << "Debug 1" << std::endl;
         if (infile) {
             std::string line;
             while (std::getline(infile, line)){
