@@ -25,6 +25,9 @@ std::string usage_str = R"(
 And some explanation
 )";
 
+void parse_json_options(std::string &file_name, cl_options &options);
+void write_json_options(std::string &file_name, cl_options &options);
+
 // Read options from (optional) json file and command line arguments.
 cl_options read_options(int argc, char** argv, bool allow_write) {
 
