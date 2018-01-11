@@ -9,6 +9,8 @@
 #include <type_traits>
 
 #include <tclap/CmdLine.h>
+#include <tinyopt.hpp>
+
 #include <json/json.hpp>
 
 #include <util/meta.hpp>
@@ -16,6 +18,8 @@
 #include <util/strprintf.hpp>
 
 #include "io.hpp"
+
+using arb::util::optional;
 
 // Let TCLAP understand value arguments that are of an optional type.
 
@@ -115,7 +119,81 @@ static void update_option(util::optional<T>& opt, const nlohmann::json& j, const
 
 // Read options from (optional) json file and command line arguments.
 cl_options read_options(int argc, char** argv, bool allow_write) {
+
+    std::string usage_str = R"(
+[OPTION]...
+
+-n, --count=int        (10000)  Number of individual Poisson cell to run.
+
+And some explanation
+)";
+
+    // The set of varuiables that might be set from the commandline
+    optional<uint32_t> cells;
+    optional<uint32_t> synapses_per_cell;
+    optional<uint32_t> compartments_per_segment;
+    optional<arb::time_type> tfinal;
+    optional<std::string> json_input;
+    optional<std::string> json_output;
+    bool verbose = false;
+
+    // Parse the possible command line parameters
+    try {
+        auto arg = argv + 1;
+        while (*arg) {
+            if (auto o = to::parse_opt<uint32_t>(arg, 'n', "cells")) {
+                cells = *o;
+            }
+            if (auto o = to::parse_opt<uint32_t>(arg, 's', "synapses_per_cell")) {
+                synapses_per_cell = *o;
+            }
+            else if (auto o = to::parse_opt<uint32_t>(arg, 'c', "compartments_per_segment")) {
+                compartments_per_segment = *o;
+            }
+            else if (auto o = to::parse_opt<arb::time_type>(arg, 't', "tfinal")) {
+                tfinal = *o;
+            }
+            else if (auto o = to::parse_opt<bool>(arg, 'v', "verbose")) {
+                verbose = *o;
+            }
+            else if (auto o = to::parse_opt<std::string>(arg, 't', "json_output")) {
+                json_output = *o;
+            }
+            else if (auto o = to::parse_opt<std::string>(arg, 0, "json_input")) {
+                json_input = *o;
+            }
+            else if (auto o = to::parse_opt(arg, 'h', "help")) {
+                to::usage(argv[0], usage_str);
+                exit(0);
+            }
+            else {
+                throw to::parse_opt_error(*arg, "unrecognized option");
+            }
+        }
+    }
+    catch (to::parse_opt_error& e) {
+        std::cerr << argv[0] << ": " << e.what() << "\n";
+        std::cerr << "Try '" << argv[0] << " --help' for more information.\n";
+        std::exit(2);
+    }
+    catch (std::exception& e) {
+        std::cerr << "caught exception: " << e.what() << "\n";
+        std::exit(1);
+    }
+
+    // Overwrite the default with 1. The json file and 2. command line options
+    // Grab the default options struct
     cl_options options;
+
+
+    if (json_input)
+    {
+
+
+    }
+
+
+
     std::string save_file = "";
 
     // Parse command line arguments.
