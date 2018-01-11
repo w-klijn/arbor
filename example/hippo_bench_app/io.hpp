@@ -18,11 +18,14 @@ namespace io {
 // Default constructor gives default options.
 
 struct cl_options {
-    // Cell parameters:
+    // Cell parameters
+    // Cmmand line
     uint32_t cells = 1000;
     uint32_t synapses_per_cell = 500;
-    std::string syn_type = "expsyn";
     uint32_t compartments_per_segment = 100;
+
+    //*
+    std::string syn_type = "expsyn";
     util::optional<std::string> morphologies;
     bool morph_rr = false; // False => pick morphologies randomly, true => pick morphologies round-robin.
 
