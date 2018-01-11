@@ -218,38 +218,37 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
     cl_options defaults;
 
     o << "simulation options: \n";
-    o << "  cells                   : " << (options.cells == defaults.cells ? " " : " * ") << options.cells << "\n";
-    o << "  synapses_per_cell       : " << (options.synapses_per_cell == defaults.synapses_per_cell ? " " : " * ") << options.synapses_per_cell << "\n";
+    o << "  cells                   : " << (options.cells == defaults.cells ? " " : " * ")                                       << options.cells << "\n";
+    o << "  synapses_per_cell       : " << (options.synapses_per_cell == defaults.synapses_per_cell ? " " : " * ")               << options.synapses_per_cell << "\n";
     o << "  compartments_per_segment: " << (options.compartments_per_segment == defaults.compartments_per_segment ? " " : " * ") << options.compartments_per_segment << "\n";
-    o << "  syn_type                : " << (options.syn_type == defaults.syn_type ? " " : " * ") << options.syn_type << "\n";
+    o << "  syn_type                : " << (options.syn_type == defaults.syn_type ? " " : " * ")                                 << options.syn_type << "\n";
     if (options.morphologies) {
-        o << "  morphologies            : " << (options.morphologies.value() == defaults.morphologies.value() ? " " : " * ") << options.morphologies.value() << "\n";
+        o << "  morphologies            : " << (options.morphologies.value() == defaults.morphologies.value() ? " " : " * ")     << options.morphologies.value() << "\n";
     }
-    o << "  morph_rr                : " << (options.morph_rr == defaults.morph_rr ? " " : " * ") << options.morph_rr << "\n";
-    o << "  tfinal                  : " << (options.tfinal == defaults.tfinal ? " " : " * ") << options.tfinal << "\n";
-    o << "  dt                      : " << (options.dt == defaults.dt ? " " : " * ") << options.dt << "\n";
-    o << "  bin_regular             : " << (options.bin_regular == defaults.bin_regular ? " " : " * ") << options.bin_regular << "\n";
-    o << "  bin_dt                  : " << (options.bin_dt == defaults.bin_dt ? " " : " * ") << options.bin_dt << "\n";
-    o << "  sample_dt               : " << (options.sample_dt == defaults.sample_dt ? " " : " * ") << options.sample_dt << "\n";
-    o << "  probe_soma_only         : " << (options.probe_soma_only == defaults.probe_soma_only ? " " : " * ") << options.probe_soma_only << "\n";
-    o << "  probe_ratio             : " << (options.probe_ratio == defaults.probe_ratio ? " " : " * ") << options.probe_ratio << "\n";
-    o << "  trace_prefix            : " << (options.trace_prefix == defaults.trace_prefix ? " " : " * ") << options.trace_prefix << "\n";
+    o << "  morph_rr                : " << (options.morph_rr == defaults.morph_rr ? " " : " * ")                                 << options.morph_rr << "\n";
+    o << "  tfinal                  : " << (options.tfinal == defaults.tfinal ? " " : " * ")                                     << options.tfinal << "\n";
+    o << "  dt                      : " << (options.dt == defaults.dt ? " " : " * ")                                             << options.dt << "\n";
+    o << "  bin_regular             : " << (options.bin_regular == defaults.bin_regular ? " " : " * ")                           << options.bin_regular << "\n";
+    o << "  bin_dt                  : " << (options.bin_dt == defaults.bin_dt ? " " : " * ")                                     << options.bin_dt << "\n";
+    o << "  sample_dt               : " << (options.sample_dt == defaults.sample_dt ? " " : " * ")                               << options.sample_dt << "\n";
+    o << "  probe_soma_only         : " << (options.probe_soma_only == defaults.probe_soma_only ? " " : " * ")                   << options.probe_soma_only << "\n";
+    o << "  probe_ratio             : " << (options.probe_ratio == defaults.probe_ratio ? " " : " * ")                           << options.probe_ratio << "\n";
+    o << "  trace_prefix            : " << (options.trace_prefix == defaults.trace_prefix ? " " : " * ")                         << options.trace_prefix << "\n";
     if (options.trace_max_gid) {
-        o << "  trace_max_gid           : " << (options.trace_max_gid.value() == defaults.trace_max_gid.value() ? " " : " * ") << options.trace_max_gid.value() << "\n";
+        o << "  trace_max_gid           : " << (options.trace_max_gid.value() == defaults.trace_max_gid.value() ? " " : " * ")   << options.trace_max_gid.value() << "\n";
     }
-    o << "  trace_format            : " << (options.trace_format == defaults.trace_format ? " " : " * ") << options.trace_format << "\n";
-    o << "  spike_file_output       : " << (options.spike_file_output == defaults.spike_file_output ? " " : " * ") << options.spike_file_output << "\n";
-    o << "  single_file_per_rank    : " << (options.single_file_per_rank == defaults.single_file_per_rank ? " " : " * ") << options.single_file_per_rank << "\n";
-    o << "  over_write              : " << (options.over_write == defaults.over_write ? " " : " * ") << options.over_write << "\n";
-    o << "  output_path             : " << (options.output_path == defaults.output_path ? " " : " * ") << options.output_path << "\n";
-    o << "  file_name               : " << (options.file_name == defaults.file_name ? " " : " * ") << options.file_name << "\n";
-    o << "  file_extension          : " << (options.file_extension == defaults.file_extension ? " " : " * ") << options.file_extension << "\n";
-    o << "  spike_file_input        : " << (options.spike_file_input == defaults.spike_file_input ? " " : " * ") << options.spike_file_input << "\n";
-    o << "  input_spike_path        : " << (options.input_spike_path == defaults.input_spike_path ? " " : " * ") << options.input_spike_path << "\n";
-    o << "  dry_run_ranks           : " << (options.dry_run_ranks == defaults.dry_run_ranks ? " " : " * ") << options.dry_run_ranks << "\n";
-    o << "  profile_only_zero       : " << (options.profile_only_zero == defaults.profile_only_zero ? " " : " * ") << options.profile_only_zero << "\n";
-    o << "  report_compartments     : " << (options.report_compartments == defaults.report_compartments ? " " : " * ") << options.report_compartments << "\n";
-
+    o << "  trace_format            : " << (options.trace_format == defaults.trace_format ? " " : " * ")                         << options.trace_format << "\n";
+    o << "  spike_file_output       : " << (options.spike_file_output == defaults.spike_file_output ? " " : " * ")               << options.spike_file_output << "\n";
+    o << "  single_file_per_rank    : " << (options.single_file_per_rank == defaults.single_file_per_rank ? " " : " * ")         << options.single_file_per_rank << "\n";
+    o << "  over_write              : " << (options.over_write == defaults.over_write ? " " : " * ")                             << options.over_write << "\n";
+    o << "  output_path             : " << (options.output_path == defaults.output_path ? " " : " * ")                           << options.output_path << "\n";
+    o << "  file_name               : " << (options.file_name == defaults.file_name ? " " : " * ")                               << options.file_name << "\n";
+    o << "  file_extension          : " << (options.file_extension == defaults.file_extension ? " " : " * ")                     << options.file_extension << "\n";
+    o << "  spike_file_input        : " << (options.spike_file_input == defaults.spike_file_input ? " " : " * ")                 << options.spike_file_input << "\n";
+    o << "  input_spike_path        : " << (options.input_spike_path == defaults.input_spike_path ? " " : " * ")                 << options.input_spike_path << "\n";
+    o << "  dry_run_ranks           : " << (options.dry_run_ranks == defaults.dry_run_ranks ? " " : " * ")                       << options.dry_run_ranks << "\n";
+    o << "  profile_only_zero       : " << (options.profile_only_zero == defaults.profile_only_zero ? " " : " * ")               << options.profile_only_zero << "\n";
+    o << "  report_compartments     : " << (options.report_compartments == defaults.report_compartments ? " " : " * ")           << options.report_compartments << "\n";
 
     o << " \n\n Options marked with * are different from default. \n";
     return o;
