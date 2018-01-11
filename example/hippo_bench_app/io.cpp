@@ -25,114 +25,6 @@ std::string usage_str = R"(
 And some explanation
 )";
 
-
-void parse_json_options(std::string &file_name, cl_options &options){
-    // Ugly if statement because c++ does not have reflexion
-    std::ifstream fid(file_name);
-    if (fid) {
-        try {
-            nlohmann::json fopts;
-            fid >> fopts;
-            for (nlohmann::json::iterator it = fopts.begin(); it != fopts.end(); ++it) {
-                // To make this if else tree readable do not follow standard code formatting
-                if      (it.key() == "cells")                   { options.cells = it.value(); }
-                else if (it.key() == "synapses_per_cell")       { options.synapses_per_cell = it.value(); }
-                else if (it.key() == "compartments_per_segment"){ options.compartments_per_segment = it.value(); }
-                else if (it.key() == "syn_type")                { std::string temp = it.value(); options.syn_type = temp; }
-                else if (it.key() == "morphologies")            { std::string temp = it.value(); options.morphologies = temp; }
-                else if (it.key() == "morph_rr")                { options.morph_rr = it.value();}
-
-                else if (it.key() == "tfinal")                  { options.tfinal = it.value(); }
-                else if (it.key() == "dt")                      { options.dt = it.value(); }
-                else if (it.key() == "bin_regular")             { options.bin_regular = it.value(); }
-                else if (it.key() == "bin_dt")                  { options.bin_dt = it.value(); }
-                else if (it.key() == "sample_dt")               { options.sample_dt = it.value(); }
-                else if (it.key() == "probe_soma_only")         { options.probe_soma_only = it.value(); }
-                else if (it.key() == "probe_ratio")             { options.probe_ratio = it.value(); }
-                else if (it.key() == "trace_prefix")            { std::string temp = it.value(); options.trace_prefix = temp; }
-                else if (it.key() == "trace_max_gid")           { unsigned temp = it.value(); options.trace_max_gid = temp; }
-                else if (it.key() == "trace_format")            { std::string temp = it.value(); options.trace_format = temp; }
-                else if (it.key() == "spike_file_output")       { options.spike_file_output = it.value(); }
-                else if (it.key() == "single_file_per_rank")    { options.single_file_per_rank = it.value(); }
-                else if (it.key() == "over_write")              { options.over_write = it.value(); }
-                else if (it.key() == "output_path")             { std::string temp = it.value(); options.output_path = temp; }
-                else if (it.key() == "file_name")               { std::string temp = it.value(); options.file_name = temp; }
-                else if (it.key() == "file_extension")          { std::string temp = it.value(); options.file_extension = temp; }
-                else if (it.key() == "spike_file_input")        { options.spike_file_input = it.value(); }
-                else if (it.key() == "input_spike_path")        { std::string temp = it.value(); options.input_spike_path= temp; }
-                else if (it.key() == "dry_run_ranks")           { options.dry_run_ranks = it.value(); }
-                else if (it.key() == "profile_only_zero")       { options.profile_only_zero = it.value(); }
-                else if (it.key() == "report_compartments")     { options.report_compartments = it.value(); }
-
-                else {
-                    std::cerr << "Warning: Encountered an unknown key in config: " << file_name << "\n"
-                        << "Key: " << it.key() << "    Value: " << it.value() << "\n";
-                }
-            }
-        }
-        catch (std::exception& e) {
-            throw model_description_error(
-                "unable to parse parameters in " + file_name + ": " + e.what());
-        }
-
-    }
-    else {
-        throw model_description_error("Unable to open file" + file_name);
-    }
-}
-
-void write_json_options(std::string &file_name, cl_options &options) {
-    std::ofstream fid(file_name);
-    if (fid) {
-        try {
-            nlohmann::json fopts;
-                // To make this if else tree readable do not follow standard code formatting
-            fopts["cells"] = options.cells;
-            fopts["synapses_per_cell"] = options.synapses_per_cell;
-            fopts["compartments_per_segment"] = options.compartments_per_segment;
-            fopts["syn_type"] = options.syn_type;
-            if (options.morphologies) {
-                fopts["morphologies"] = options.morphologies.value();
-            }
-            fopts["morph_rr"] = options.morph_rr;
-            fopts["tfinal"] = options.tfinal;
-            fopts["dt"] = options.dt;
-            fopts["bin_regular"] = options.bin_regular;
-            fopts["bin_dt"] = options.bin_dt;
-            fopts["sample_dt"] = options.sample_dt;
-            fopts["probe_soma_only"] = options.probe_soma_only;
-            fopts["probe_ratio"] = options.probe_ratio;
-            fopts["trace_prefix"] = options.trace_prefix;
-            if (options.trace_max_gid) {
-                fopts["trace_max_gid"] = options.trace_max_gid.value();
-            }
-            fopts["trace_format"] = options.trace_format;
-            fopts["spike_file_output"] = options.spike_file_output;
-            fopts["single_file_per_rank"] = options.single_file_per_rank;
-            fopts["over_write"] = options.over_write;
-            fopts["output_path"] = options.output_path;
-            fopts["file_name"] = options.file_name;
-            fopts["file_extension"] = options.file_extension;
-            fopts["spike_file_input"] = options.spike_file_input;
-            fopts["input_spike_path"] = options.input_spike_path;
-            fopts["dry_run_ranks"] = options.dry_run_ranks;
-            fopts["profile_only_zero"] = options.profile_only_zero;
-            fopts["report_compartments"] = options.report_compartments;
-
-            fid << std::setw(3) << fopts << "\n";
-
-        }
-        catch (std::exception& e) {
-            throw model_description_error(
-                "unable to save parameters in " + file_name + ": " + e.what());
-        }
-    }
-    else {
-        throw usage_error("unable to write to model parameter file " + file_name);
-    }
-
-}
-
 // Read options from (optional) json file and command line arguments.
 cl_options read_options(int argc, char** argv, bool allow_write) {
 
@@ -209,6 +101,114 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     }
     std::cout << "debug end io \n";
     return options;
+}
+
+
+void parse_json_options(std::string &file_name, cl_options &options) {
+    // Ugly if statement because c++ does not have reflexion
+    std::ifstream fid(file_name);
+    if (fid) {
+        try {
+            nlohmann::json fopts;
+            fid >> fopts;
+            for (nlohmann::json::iterator it = fopts.begin(); it != fopts.end(); ++it) {
+                // To make this if else tree readable do not follow standard code formatting
+                // When adding options also add these in:  write_json_options() and  operator<<
+                if (it.key() == "cells") { options.cells = it.value(); }
+                else if (it.key() == "synapses_per_cell") { options.synapses_per_cell = it.value(); }
+                else if (it.key() == "compartments_per_segment") { options.compartments_per_segment = it.value(); }
+                else if (it.key() == "syn_type") { std::string temp = it.value(); options.syn_type = temp; }
+                else if (it.key() == "morphologies") { std::string temp = it.value(); options.morphologies = temp; }
+                else if (it.key() == "morph_rr") { options.morph_rr = it.value(); }
+                else if (it.key() == "tfinal") { options.tfinal = it.value(); }
+                else if (it.key() == "dt") { options.dt = it.value(); }
+                else if (it.key() == "bin_regular") { options.bin_regular = it.value(); }
+                else if (it.key() == "bin_dt") { options.bin_dt = it.value(); }
+                else if (it.key() == "sample_dt") { options.sample_dt = it.value(); }
+                else if (it.key() == "probe_soma_only") { options.probe_soma_only = it.value(); }
+                else if (it.key() == "probe_ratio") { options.probe_ratio = it.value(); }
+                else if (it.key() == "trace_prefix") { std::string temp = it.value(); options.trace_prefix = temp; }
+                else if (it.key() == "trace_max_gid") { unsigned temp = it.value(); options.trace_max_gid = temp; }
+                else if (it.key() == "trace_format") { std::string temp = it.value(); options.trace_format = temp; }
+                else if (it.key() == "spike_file_output") { options.spike_file_output = it.value(); }
+                else if (it.key() == "single_file_per_rank") { options.single_file_per_rank = it.value(); }
+                else if (it.key() == "over_write") { options.over_write = it.value(); }
+                else if (it.key() == "output_path") { std::string temp = it.value(); options.output_path = temp; }
+                else if (it.key() == "file_name") { std::string temp = it.value(); options.file_name = temp; }
+                else if (it.key() == "file_extension") { std::string temp = it.value(); options.file_extension = temp; }
+                else if (it.key() == "spike_file_input") { options.spike_file_input = it.value(); }
+                else if (it.key() == "input_spike_path") { std::string temp = it.value(); options.input_spike_path = temp; }
+                else if (it.key() == "dry_run_ranks") { options.dry_run_ranks = it.value(); }
+                else if (it.key() == "profile_only_zero") { options.profile_only_zero = it.value(); }
+                else if (it.key() == "report_compartments") { options.report_compartments = it.value(); }
+
+                else {
+                    std::cerr << "Warning: Encountered an unknown key in config: " << file_name << "\n"
+                        << "Key: " << it.key() << "    Value: " << it.value() << "\n";
+                }
+            }
+        }
+        catch (std::exception& e) {
+            throw model_description_error(
+                "unable to parse parameters in " + file_name + ": " + e.what());
+        }
+
+    }
+    else {
+        throw model_description_error("Unable to open file" + file_name);
+    }
+}
+
+void write_json_options(std::string &file_name, cl_options &options) {
+    std::ofstream fid(file_name);
+    if (fid) {
+        try {
+            nlohmann::json fopts;
+            // To make this if else tree readable do not follow standard code formatting
+            fopts["cells"] = options.cells;
+            fopts["synapses_per_cell"] = options.synapses_per_cell;
+            fopts["compartments_per_segment"] = options.compartments_per_segment;
+            fopts["syn_type"] = options.syn_type;
+            if (options.morphologies) {
+                fopts["morphologies"] = options.morphologies.value();
+            }
+            fopts["morph_rr"] = options.morph_rr;
+            fopts["tfinal"] = options.tfinal;
+            fopts["dt"] = options.dt;
+            fopts["bin_regular"] = options.bin_regular;
+            fopts["bin_dt"] = options.bin_dt;
+            fopts["sample_dt"] = options.sample_dt;
+            fopts["probe_soma_only"] = options.probe_soma_only;
+            fopts["probe_ratio"] = options.probe_ratio;
+            fopts["trace_prefix"] = options.trace_prefix;
+            if (options.trace_max_gid) {
+                fopts["trace_max_gid"] = options.trace_max_gid.value();
+            }
+            fopts["trace_format"] = options.trace_format;
+            fopts["spike_file_output"] = options.spike_file_output;
+            fopts["single_file_per_rank"] = options.single_file_per_rank;
+            fopts["over_write"] = options.over_write;
+            fopts["output_path"] = options.output_path;
+            fopts["file_name"] = options.file_name;
+            fopts["file_extension"] = options.file_extension;
+            fopts["spike_file_input"] = options.spike_file_input;
+            fopts["input_spike_path"] = options.input_spike_path;
+            fopts["dry_run_ranks"] = options.dry_run_ranks;
+            fopts["profile_only_zero"] = options.profile_only_zero;
+            fopts["report_compartments"] = options.report_compartments;
+
+            fid << std::setw(3) << fopts << "\n";
+
+        }
+        catch (std::exception& e) {
+            throw model_description_error(
+                "unable to save parameters in " + file_name + ": " + e.what());
+        }
+    }
+    else {
+        throw usage_error("unable to write to model parameter file " + file_name);
+    }
+
 }
 
 std::ostream& operator<<(std::ostream& o, const cl_options& options) {
