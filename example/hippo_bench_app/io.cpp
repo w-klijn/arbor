@@ -155,10 +155,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
             false, defopts.bin_dt, "time", cmd);
         TCLAP::SwitchArg bin_regular_arg(
             "","bin-regular","use 'regular' binning policy instead of 'following'", cmd, false);
-        TCLAP::SwitchArg all_to_all_arg(
-            "m","alltoall","all to all network", cmd, false);
-        TCLAP::SwitchArg ring_arg(
-            "r","ring","ring network", cmd, false);
         TCLAP::ValueArg<double> sample_dt_arg(
             "", "sample-dt", "set sampling interval to <time> ms",
             false, defopts.bin_dt, "time", cmd);
@@ -223,8 +219,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
                     update_option(options.bin_dt, fopts, "bin_dt");
                     update_option(options.bin_regular, fopts, "bin_regular");
                     update_option(options.tfinal, fopts, "tfinal");
-                    update_option(options.all_to_all, fopts, "all_to_all");
-                    update_option(options.ring, fopts, "ring");
                     update_option(options.sample_dt, fopts, "sample_dt");
                     update_option(options.probe_ratio, fopts, "probe_ratio");
                     update_option(options.probe_soma_only, fopts, "probe_soma_only");
@@ -273,8 +267,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
         update_option(options.dt, dt_arg);
         update_option(options.bin_dt, bin_dt_arg);
         update_option(options.bin_regular, bin_regular_arg);
-        update_option(options.all_to_all, all_to_all_arg);
-        update_option(options.ring, ring_arg);
         update_option(options.sample_dt, sample_dt_arg);
         update_option(options.probe_ratio, probe_ratio_arg);
         update_option(options.probe_soma_only, probe_soma_only_arg);
@@ -298,10 +290,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
             throw usage_error("trace format must be one of: csv, json");
         }
 
-        if (options.all_to_all && options.ring) {
-            throw usage_error("can specify at most one of --ring and --all-to-all");
-        }
-
         save_file = ofile_arg.getValue();
     }
     catch (TCLAP::ArgException& e) {
@@ -323,8 +311,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
                 fopts["bin_dt"] = options.bin_dt;
                 fopts["bin_regular"] = options.bin_regular;
                 fopts["tfinal"] = options.tfinal;
-                fopts["all_to_all"] = options.all_to_all;
-                fopts["ring"] = options.ring;
                 fopts["sample_dt"] = options.sample_dt;
                 fopts["probe_ratio"] = options.probe_ratio;
                 fopts["probe_soma_only"] = options.probe_soma_only;
@@ -375,8 +361,6 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
     o << "  binning dt           : " << options.bin_dt << "\n";
     o << "  binning policy       : " <<
         (options.bin_dt==0? "none": options.bin_regular? "regular": "following") << "\n";
-    o << "  all to all network   : " << (options.all_to_all ? "yes" : "no") << "\n";
-    o << "  ring network         : " << (options.ring ? "yes" : "no") << "\n";
     o << "  sample dt            : " << options.sample_dt << "\n";
     o << "  probe ratio          : " << options.probe_ratio << "\n";
     o << "  probe soma only      : " << (options.probe_soma_only ? "yes" : "no") << "\n";
