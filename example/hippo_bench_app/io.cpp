@@ -1,18 +1,11 @@
-#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <iostream>
 #include <istream>
-#include <memory>
-#include <sstream>
 #include <string>
-#include <type_traits>
 
 #include <tinyopt.hpp>
-
 #include <json/json.hpp>
-
-#include <util/meta.hpp>
 #include <util/optional.hpp>
 #include <util/strprintf.hpp>
 
@@ -20,25 +13,17 @@
 
 using arb::util::optional;
 
-// Let TCLAP understand value arguments that are of an optional type.
-
 namespace arb {
-
-namespace util {
-    // Using static here because we do not want external linkage for this operator.
-    template <typename V>
-    static std::istream& operator>>(std::istream& I, optional<V>& v) {
-        V u;
-        if (I >> u) {
-            v = u;
-        }
-        return I;
-    }
-}
-
 namespace io {
 
 
+std::string usage_str = R"(
+[OPTION]...
+
+-n, --count=int        (10000)  Number of individual Poisson cell to run.
+
+And some explanation
+)";
 
 
 void parse_json_options(std::string &file_name, cl_options &options){
@@ -97,7 +82,6 @@ void parse_json_options(std::string &file_name, cl_options &options){
 }
 
 void write_json_options(std::string &file_name, cl_options &options) {
-
     std::ofstream fid(file_name);
     if (fid) {
         try {
@@ -152,14 +136,6 @@ void write_json_options(std::string &file_name, cl_options &options) {
 // Read options from (optional) json file and command line arguments.
 cl_options read_options(int argc, char** argv, bool allow_write) {
 
-    std::string usage_str = R"(
-[OPTION]...
-
--n, --count=int        (10000)  Number of individual Poisson cell to run.
-
-And some explanation
-)";
-
     // The set of varuiables that might be set from the commandline
     optional<uint32_t> cells;
     optional<uint32_t> synapses_per_cell;
@@ -167,8 +143,6 @@ And some explanation
     optional<arb::time_type> tfinal;
     optional<std::string> json_input;
     optional<std::string> json_output;
-
-
     optional<bool> verbose;
 
     // Parse the possible command line parameters
@@ -228,17 +202,16 @@ And some explanation
     {
         write_json_options(json_input.value(), options);
     }
-
+    std::cout << "debug 4 \n";
     // If verbose output requested, emit option summary.
     if (options.verbose) {
         std::cout << options << "\n";
     }
-
+    std::cout << "debug end io \n";
     return options;
 }
 
 std::ostream& operator<<(std::ostream& o, const cl_options& options) {
-
     cl_options defaults;
 
     o << "simulation options: \n";
@@ -276,8 +249,6 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
 
 
     o << " \n\n Options marked with * are different from default. \n";
-
-
     return o;
 }
 

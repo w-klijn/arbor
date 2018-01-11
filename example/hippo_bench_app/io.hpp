@@ -18,24 +18,22 @@ namespace io {
 // Default constructor gives default options.
 
 struct cl_options {
-    // Cell parameters
-    // Cmmand line
+        // Cell parameters:
     uint32_t cells = 1000;
     uint32_t synapses_per_cell = 500;
-    uint32_t compartments_per_segment = 100;
-
-    //*
     std::string syn_type = "expsyn";
+    uint32_t compartments_per_segment = 100;
     util::optional<std::string> morphologies;
     bool morph_rr = false; // False => pick morphologies randomly, true => pick morphologies round-robin.
 
+    // Network type (default is rgraph):
     // Simulation running parameters:
     double tfinal = 100.;
     double dt = 0.025;
     bool bin_regular = false; // False => use 'following' instead of 'regular'.
     double bin_dt = 0.0025;   // 0 => no binning.
 
-    // Probe/sampling specification.
+                                // Probe/sampling specification.
     double sample_dt = 0.1;
     bool probe_soma_only = false;
     double probe_ratio = 0;  // Proportion of cells to probe.
@@ -43,7 +41,7 @@ struct cl_options {
     util::optional<unsigned> trace_max_gid; // Only make traces up to this gid.
     std::string trace_format = "json"; // Support only 'json' and 'csv'.
 
-    // Parameters for spike output.
+                                        // Parameters for spike output.
     bool spike_file_output = false;
     bool single_file_per_rank = false;
     bool over_write = true;
@@ -55,7 +53,7 @@ struct cl_options {
     bool spike_file_input = false;
     std::string input_spike_path;  // Path to file with spikes
 
-    // Dry run parameters (pertinent only when built with 'dryrun' distrib model).
+                                    // Dry run parameters (pertinent only when built with 'dryrun' distrib model).
     int dry_run_ranks = 1;
 
     // Turn on/off profiling output for all ranks.
@@ -68,16 +66,16 @@ struct cl_options {
     bool verbose = false;
 };
 
-class usage_error: public std::runtime_error {
+class usage_error : public std::runtime_error {
 public:
     template <typename S>
-    usage_error(S&& whatmsg): std::runtime_error(std::forward<S>(whatmsg)) {}
+    usage_error(S&& whatmsg) : std::runtime_error(std::forward<S>(whatmsg)) {}
 };
 
-class model_description_error: public std::runtime_error {
+class model_description_error : public std::runtime_error {
 public:
     template <typename S>
-    model_description_error(S&& whatmsg): std::runtime_error(std::forward<S>(whatmsg)) {}
+    model_description_error(S&& whatmsg) : std::runtime_error(std::forward<S>(whatmsg)) {}
 };
 
 std::ostream& operator<<(std::ostream& o, const cl_options& opt);
@@ -92,3 +90,5 @@ std::vector<time_type>  get_parsed_spike_times_from_path(arb::util::path path);
 
 } // namespace io
 } // namespace arb
+
+
