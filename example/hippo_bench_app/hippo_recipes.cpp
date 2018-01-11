@@ -11,8 +11,8 @@
 #include <util/debug.hpp>
 
 
-#include "../miniapp/io.hpp"
-#include "../miniapp/miniapp_recipes.hpp"
+#include "io.hpp"
+#include "hippo_recipes.hpp"
 #include "../miniapp/morphology_pool.hpp"
 
 
