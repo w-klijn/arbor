@@ -128,6 +128,13 @@ public:
 
             gid_idx += pop.n_cells;
         }
+
+        n_cells_ = gid_idx;
+    }
+
+    // Get the total count of cells on this connection generator
+    cell_gid_type num_cells() const {
+        return n_cells_;
     }
 
     // Returns a vector of all synaptic parameters sets for this gid
@@ -283,6 +290,9 @@ private:
 
     std::vector<population_indexed> populations_;
     std::vector<projection> connectome_;
+
+    // Number of cells in this connection class
+    cell_gid_type n_cells_;
 };
 
 }

@@ -94,7 +94,7 @@ public:
     }
 
     cell_size_type num_cells() const override {
-        return ncell_ + 1;  // We automatically add a fake cell to each recipe!
+        return con_gen.num_cells();
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
