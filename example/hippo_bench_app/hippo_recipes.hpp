@@ -45,15 +45,6 @@ struct basic_recipe_param {
     util::optional<std::string> input_spike_path;  // Path to file with spikes
 };
 
-std::unique_ptr<recipe> make_basic_ring_recipe(
-        cell_gid_type ncell,
-        basic_recipe_param param,
-        probe_distribution pdist = probe_distribution{});
-
-std::unique_ptr<recipe> make_basic_kgraph_recipe(
-        cell_gid_type ncell,
-        basic_recipe_param param,
-        probe_distribution pdist = probe_distribution{});
 
 std::unique_ptr<recipe> make_hippo_recipe(
         cell_gid_type ncell,

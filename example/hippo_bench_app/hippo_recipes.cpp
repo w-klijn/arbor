@@ -15,6 +15,9 @@
 #include "hippo_recipes.hpp"
 #include "../miniapp/morphology_pool.hpp"
 
+#include "../con_gen/connection_generator.hpp"
+#include "../con_gen/con_gen_utils.hpp"
+
 
 namespace arb {
 
@@ -73,11 +76,18 @@ cell make_basic_cell(
     return cell;
 }
 
-class basic_cell_recipe: public recipe {
+class hippo_recipe: public recipe {
 public:
-    basic_cell_recipe(cell_gid_type ncell, basic_recipe_param param, probe_distribution pdist):
-        ncell_(ncell), param_(std::move(param)), pdist_(std::move(pdist))
+    hippo_recipe(cell_gid_type ncell, basic_recipe_param param, probe_distribution pdist):
+        ncell_(ncell), param_(std::move(param)), pdist_(std::move(pdist)),
+        con_gen(con_gen_util::default_populations(), con_gen_util::default_connectome())
     {
+        // Cells are not allowed to connect to themselves; hence there must be least two cells
+        // to build a connected network.
+        if (ncell<2) {
+            throw std::runtime_error("A randomly connected network must have at least 2 cells.");
+        }
+
         EXPECTS(param_.morphologies.size()>0);
         delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
                             - param_.min_connection_delay_ms};
@@ -112,6 +122,38 @@ public:
         EXPECTS(cell.detectors().size()==num_sources(i));
 
         return util::unique_any(std::move(cell));
+    }
+
+    std::vector<cell_connection> connections_on(cell_gid_type i) const override {
+        std::vector<cell_connection> conns;
+
+        // The rss_cell does not have inputs
+        if (i == ncell_) {
+            return conns;
+        }
+        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
+        auto source_gen = std::mt19937(i * 123 + 457); // ditto
+
+        std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_ - 2);
+
+        for (unsigned t = 0; t<param_.num_synapses; ++t) {
+            auto source = source_distribution(source_gen);
+            if (source >= i) ++source;
+
+            cell_connection cc = draw_connection_params(conn_param_gen);
+            cc.source = { source, 0 };
+            cc.dest = { i, t };
+            conns.push_back(cc);
+
+            // The rss_cell spikes at t=0, with these connections it looks like
+            // (source % 20) == 0 spikes at that moment.
+            if (source % 20 == 0) {
+                cc.source = { ncell_, 0 };
+                conns.push_back(cc);
+            }
+        }
+
+        return conns;
     }
 
     probe_info get_probe(cell_member_type probe_id) const override {
@@ -191,11 +233,19 @@ protected:
     }
 
     cell_gid_type ncell_;
+
     basic_recipe_param param_;
+
     probe_distribution pdist_;
 
     using exp_param = std::exponential_distribution<float>::param_type;
+
     exp_param delay_distribution_param_;
+
+    arb_con_gen::connection_generator con_gen;
+
+
+
 
     const morphology& get_morphology(cell_gid_type gid) const {
         // Allocate to gids sequentially?
@@ -213,59 +263,12 @@ protected:
 };
 
 
-class basic_rgraph_recipe: public basic_cell_recipe {
-public:
-    basic_rgraph_recipe(cell_gid_type ncell,
-                      basic_recipe_param param,
-                      probe_distribution pdist = probe_distribution{}):
-        basic_cell_recipe(ncell, std::move(param), std::move(pdist))
-    {
-        // Cells are not allowed to connect to themselves; hence there must be least two cells
-        // to build a connected network.
-        if (ncell<2) {
-            throw std::runtime_error("A randomly connected network must have at least 2 cells.");
-        }
-    }
-
-    std::vector<cell_connection> connections_on(cell_gid_type i) const override {
-        std::vector<cell_connection> conns;
-
-        // The rss_cell does not have inputs
-        if (i == ncell_) {
-            return conns;
-        }
-        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
-        auto source_gen = std::mt19937(i*123+457); // ditto
-
-        std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_-2);
-
-        for (unsigned t=0; t<param_.num_synapses; ++t) {
-            auto source = source_distribution(source_gen);
-            if (source>=i) ++source;
-
-            cell_connection cc = draw_connection_params(conn_param_gen);
-            cc.source = {source, 0};
-            cc.dest = {i, t};
-            conns.push_back(cc);
-
-            // The rss_cell spikes at t=0, with these connections it looks like
-            // (source % 20) == 0 spikes at that moment.
-            if (source % 20 == 0) {
-                cc.source = {ncell_, 0};
-                conns.push_back(cc);
-            }
-        }
-
-        return conns;
-    }
-};
-
 std::unique_ptr<recipe> make_hippo_recipe(
         cell_gid_type ncell,
         basic_recipe_param param,
         probe_distribution pdist)
 {
-    return std::unique_ptr<recipe>(new basic_rgraph_recipe(ncell, param, pdist));
+    return std::unique_ptr<recipe>(new hippo_recipe(ncell, param, pdist));
 }
 
 

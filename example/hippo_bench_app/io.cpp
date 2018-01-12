@@ -97,12 +97,11 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     {
         write_json_options(json_input.value(), options);
     }
-    std::cout << "debug 4 \n";
+
     // If verbose output requested, emit option summary.
     if (options.verbose) {
         std::cout << options << "\n";
     }
-    std::cout << "debug end io \n";
     return options;
 }
 
