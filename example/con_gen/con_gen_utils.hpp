@@ -192,8 +192,8 @@ namespace con_gen_util {
     std::vector<arb_con_gen::population> default_populations() {
         std::vector<arb_con_gen::population> default_populations;
 
-        default_populations.push_back({ 100, 100, true });
-        default_populations.push_back({ 100, 100, true });
+        default_populations.push_back({ 10, 10, true });
+        default_populations.push_back({ 10, 10, true });
 
         return default_populations;
     }
@@ -216,8 +216,8 @@ namespace con_gen_util {
     // 1 > 0. count 1000, ds 0.1 | weight -mean 2.0 -sd 1.0 | delay 1.0 -sd 1.0
     std::vector<arb_con_gen::projection> default_connectome() {
         std::vector<arb_con_gen::projection>  connectome;
-        connectome.push_back({ 0,1,{ 0.02, 400,  2.0, 1.0, 1.0, 1.0 } });
-        connectome.push_back({ 1,0,{ 0.05, 1000, 2.0, 1.0, 1.0, 1.0 } });
+        connectome.push_back({ 0,1,{ 0.02, 8,  2.0, 1.0, 1.0, 1.0 } });
+        connectome.push_back({ 1,0,{ 0.05, 10, 2.0, 1.0, 1.0, 1.0 } });
 
         return connectome;
     }

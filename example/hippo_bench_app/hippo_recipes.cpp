@@ -52,6 +52,7 @@ cell make_basic_cell(
 
     auto distribution = std::uniform_real_distribution<float>(0.f, 1.0f);
 
+    // TODOW: We might have to add a better synapse location here at some time
     // Distribute the synapses at random locations the terminal dendrites in a
     // round robin manner.
 
@@ -70,6 +71,8 @@ cell make_basic_cell(
     arb::mechanism_spec syn_default(syn_type);
     for (unsigned i=0; i<num_synapses; ++i) {
         unsigned id = terminals[i%terminals.size()];
+
+
         cell.add_synapse({id, distribution(rng)}, syn_default);
     }
 
@@ -100,26 +103,16 @@ public:
     util::unique_any get_cell_description(cell_gid_type i) const override {
         // The last 'cell' is a spike source cell. Either a regular spiking
         // or a spikes from file.
-        if (i == ncell_) {
-            if (param_.input_spike_path) {
-                auto spike_times = io::get_parsed_spike_times_from_path(param_.input_spike_path.value());
-                return util::unique_any(dss_cell_description(spike_times));
-            }
-
-            return util::unique_any(rss_cell{0.0, 0.1, 0.1});
-        }
 
         auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
 
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
 
-        auto cell = make_basic_cell(morph, param_.num_compartments, param_.num_synapses,
+        auto cell = make_basic_cell(morph, param_.num_compartments, con_gen.num_synapses_on(i),
                         param_.synapse_type, gen);
 
         EXPECTS(cell.num_segments()==cell_segments);
-        EXPECTS(cell.synapses().size()==num_targets(i));
-        EXPECTS(cell.detectors().size()==num_sources(i));
 
         return util::unique_any(std::move(cell));
     }
@@ -127,32 +120,13 @@ public:
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
-        // The rss_cell does not have inputs
-        if (i == ncell_) {
-            return conns;
+        auto connections = con_gen.synapses_on(i);
+        unsigned tag_idx = 0;
+        for (auto& syn_par : connections) {
+            conns.push_back(cell_connection(
+            { syn_par.gid, 0 }, { i, tag_idx }, syn_par.weight, syn_par.delay));
+            tag_idx++;
         }
-        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
-        auto source_gen = std::mt19937(i * 123 + 457); // ditto
-
-        std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_ - 2);
-
-        for (unsigned t = 0; t<param_.num_synapses; ++t) {
-            auto source = source_distribution(source_gen);
-            if (source >= i) ++source;
-
-            cell_connection cc = draw_connection_params(conn_param_gen);
-            cc.source = { source, 0 };
-            cc.dest = { i, t };
-            conns.push_back(cc);
-
-            // The rss_cell spikes at t=0, with these connections it looks like
-            // (source % 20) == 0 spikes at that moment.
-            if (source % 20 == 0) {
-                cc.source = { ncell_, 0 };
-                conns.push_back(cc);
-            }
-        }
-
         return conns;
     }
 
@@ -188,14 +162,7 @@ public:
     }
 
     cell_kind get_cell_kind(cell_gid_type i) const override {
-        // The last 'cell' is a rss_cell with one spike at t=0
-        if (i == ncell_) {
-            if (param_.input_spike_path) {
-                return cell_kind::data_spike_source;
-            }
 
-            return cell_kind::regular_spike_source;
-        }
         return cell_kind::cable1d_neuron;
     }
 
@@ -224,13 +191,6 @@ public:
     }
 
 protected:
-    template <typename RNG>
-    cell_connection draw_connection_params(RNG& rng) const {
-        std::exponential_distribution<float> delay_dist(delay_distribution_param_);
-        float delay = param_.min_connection_delay_ms + delay_dist(rng);
-        float weight = param_.syn_weight_per_cell/param_.num_synapses;
-        return cell_connection{{0, 0}, {0, 0}, weight, delay};
-    }
 
     cell_gid_type ncell_;
 

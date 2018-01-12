@@ -133,12 +133,77 @@ public:
     }
 
     // Get the total count of cells on this connection generator
-    cell_gid_type num_cells() const {
+    // TODO: Refactor to connection generator and neuron generator
+    cell_size_type num_cells() const {
         return n_cells_;
     }
 
     // Returns a vector of all synaptic parameters sets for this gid
-    std::vector<synaps_pars> synapses_on(cell_gid_type gid) {
+    cell_size_type num_synapses_on(cell_gid_type gid) const {
+        std::mt19937 gen;
+        gen.seed(gid);
+
+        cell_size_type synapse_count;
+
+        // TODO: THis is copy paste from synapses_on
+        for (auto project : connectome_) {
+
+            // Sanity check that the populations exist
+            EXPECTS(project.pre_idx < populations_.size());
+            EXPECTS(project.post_idx < populations_.size());
+
+            // Shorthand for the pre and post populations
+            auto pre_pop = populations_[project.pre_idx];
+            auto post_pop = populations_[project.post_idx];
+            auto pro_pars = project.pars;
+
+            // Distribution to draw the weights
+            std::normal_distribution<float> weight_distr(pro_pars.weight_mean, pro_pars.weight_sd);
+
+            // Used to assure correct weight sign
+            float weight_sign = arb::math::signum(pro_pars.weight_mean);
+
+            // Check if this gid receives connections via this projection
+            // TODO: Replace with the fancy in range function we have somewhere in the utils
+            if (gid < post_pop.start_index || gid >(post_pop.start_index + post_pop.n_cells)) {
+                continue;
+            }
+
+            // Convert to the local gid of the post neuron
+            auto pop_local_gid = gid - post_pop.start_index;
+
+            // Convert this to a normalized location
+            point post_location = {
+                float(pop_local_gid % post_pop.x_dim) / post_pop.x_dim,
+                float(pop_local_gid / post_pop.y_dim) / post_pop.y_dim };
+
+            // If we have non square sides we need to correct the stdev to get
+            // circular projections!
+            float sd_x = pro_pars.sd;
+            float sd_y = pro_pars.sd;
+            if (post_pop.x_dim != post_pop.y_dim) {
+                if (post_pop.x_dim < post_pop.y_dim) {
+                    float ratio = float(post_pop.y_dim) / post_pop.x_dim;
+                    sd_x *= ratio;
+                }
+                else {
+                    float ratio = float(post_pop.x_dim) / post_pop.y_dim;
+                    sd_y *= ratio;
+                }
+            }
+
+            // Now we sample from the pre population based on the x,y location of the
+            // post cell
+            auto pre_locations = get_random_locations(gen, post_location,
+                pro_pars.count, sd_x, sd_y, post_pop.periodic);
+
+            synapse_count += pre_locations.size();
+        }
+        return synapse_count;
+    }
+
+    // Returns a vector of all synaptic parameters sets for this gid
+    std::vector<synaps_pars> synapses_on(cell_gid_type gid) const {
         std::mt19937 gen;
         gen.seed(gid);
 
@@ -236,7 +301,7 @@ private:
     // supplied 2d location.
     std::vector<point> get_random_locations(std::mt19937 gen,
         point target_location, cell_size_type count,
-        float sd_x, float sd_y, bool periodic)
+        float sd_x, float sd_y, bool periodic) const
     {
         // Generate the distribution for these locations
         std::normal_distribution<float> distr_x(target_location.x, sd_x);
@@ -292,7 +357,7 @@ private:
     std::vector<projection> connectome_;
 
     // Number of cells in this connection class
-    cell_gid_type n_cells_;
+    cell_size_type n_cells_;
 };
 
 }
