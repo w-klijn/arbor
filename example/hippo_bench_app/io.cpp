@@ -13,8 +13,7 @@
 
 using arb::util::optional;
 
-namespace arb {
-namespace io {
+namespace hippo {
 
 
 std::string usage_str = R"(
@@ -31,6 +30,8 @@ void write_json_options(std::string &file_name, cl_options &options);
 // Read options from (optional) json file and command line arguments.
 cl_options read_options(int argc, char** argv, bool allow_write) {
 
+
+
     // The set of varuiables that might be set from the commandline
     optional<uint32_t> cells;
     optional<uint32_t> synapses_per_cell;
@@ -46,24 +47,24 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     try {
         auto arg = argv + 1;
         while (*arg) {
-            if (auto o = to::parse_opt<uint32_t>(arg, 'n', "cells"))                         { cells = *o; }
-            else if (auto o = to::parse_opt<uint32_t>(arg, 's', "synapses_per_cell"))        { synapses_per_cell = *o; }
-            else if (auto o = to::parse_opt<uint32_t>(arg, 'c', "compartments_per_segment")) { compartments_per_segment = *o; }
-            else if (auto o = to::parse_opt<arb::time_type>(arg, 't', "tfinal"))             { tfinal = *o; }
-            else if (auto o = to::parse_opt<bool>(arg, 'v', "verbose"))                      { verbose = *o; }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "json_output"))             { json_output = *o; }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "json_input"))              { json_input = *o; }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "json_connectome"))         { json_connectome = *o; }
-            else if (auto o = to::parse_opt<std::string>(arg, 0, "json_populations"))        { json_populations = *o; }
-            else if (auto o = to::parse_opt(arg, 'h', "help")) {
-                to::usage(argv[0], usage_str); exit(0);
+            if (auto o = arb::to::parse_opt<uint32_t>(arg, 'n', "cells"))                         { cells = *o; }
+            else if (auto o = arb::to::parse_opt<uint32_t>(arg, 's', "synapses_per_cell"))        { synapses_per_cell = *o; }
+            else if (auto o = arb::to::parse_opt<uint32_t>(arg, 'c', "compartments_per_segment")) { compartments_per_segment = *o; }
+            else if (auto o = arb::to::parse_opt<arb::time_type>(arg, 't', "tfinal"))             { tfinal = *o; }
+            else if (auto o = arb::to::parse_opt<bool>(arg, 'v', "verbose"))                      { verbose = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_output"))             { json_output = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_input"))              { json_input = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_connectome"))         { json_connectome = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_populations"))        { json_populations = *o; }
+            else if (auto o = arb::to::parse_opt(arg, 'h', "help")) {
+                arb::to::usage(argv[0], usage_str); exit(0);
             }
             else {
-                throw to::parse_opt_error(*arg, "unrecognized option");
+                throw arb::to::parse_opt_error(*arg, "unrecognized option");
             }
         }
     }
-    catch (to::parse_opt_error& e) {
+    catch (arb::to::parse_opt_error& e) {
         std::cerr << argv[0] << ": " << e.what() << "\n";
         std::cerr << "Try '" << argv[0] << " --help' for more information.\n";
         std::exit(2);
@@ -97,10 +98,19 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
         options.tfinal = tfinal.value();
     }
 
+    if (json_connectome) {
+        options.json_connectome = json_connectome;
+    }
+
+    if (json_populations) {
+        options.json_populations = json_populations;
+    }
+
     if (json_output && allow_write)
     {
         write_json_options(json_input.value(), options);
     }
+
 
     // If verbose output requested, emit option summary.
     if (options.verbose) {
@@ -264,17 +274,17 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
 ///
 /// Returns a vector of time_type
 
-std::vector<time_type> parse_spike_times_from_stream(std::ifstream & fid) {
-    std::vector<time_type> times;
+std::vector<arb::time_type> parse_spike_times_from_stream(std::ifstream & fid) {
+    std::vector<arb::time_type> times;
     std::string line;
     while (std::getline(fid, line)) {
         std::stringstream s(line);
 
-        time_type t;
+        arb::time_type t;
         s >> t >> std::ws;
 
         if (!s || s.peek() != EOF) {
-            throw std::runtime_error( util::strprintf(
+            throw std::runtime_error(arb::util::strprintf(
                     "Unable to parse spike file on line %d: \"%s\"\n",
                     times.size(), line));
         }
@@ -291,16 +301,15 @@ std::vector<time_type> parse_spike_times_from_stream(std::ifstream & fid) {
 ///
 /// Returns a vector of time_type
 
-std::vector<time_type> get_parsed_spike_times_from_path(arb::util::path path) {
+std::vector<arb::time_type> get_parsed_spike_times_from_path(arb::util::path path) {
     std::ifstream fid(path);
     if (!fid) {
-        throw std::runtime_error(util::strprintf(
+        throw std::runtime_error(arb::util::strprintf(
             "Unable to parse spike file: \"%s\"\n", path.c_str()));
     }
 
     return parse_spike_times_from_stream(fid);
 }
 
-} // namespace io
-} // namespace arb
+} // hippo
 

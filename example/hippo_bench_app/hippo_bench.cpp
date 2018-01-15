@@ -28,7 +28,7 @@
 #include <util/ioutil.hpp>
 #include <util/nop.hpp>
 
-#include "../miniapp/io.hpp"
+#include "io.hpp"
 #include "../miniapp/trace.hpp"
 
 #include "hippo_recipes.hpp"
@@ -43,7 +43,7 @@ using file_export_type = io::exporter_spike_file<global_policy>;
 using communicator_type = communication::communicator<communication::global_policy>;
 
 void banner(hw::node_info);
-std::unique_ptr<recipe> make_recipe(const io::cl_options&, const probe_distribution&);
+std::unique_ptr<recipe> make_recipe(const hippo::cl_options&, const probe_distribution&);
 sample_trace make_trace(const probe_info& probe);
 
 void report_compartment_stats(const recipe&);
@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 
         std::cout << util::mask_stream(global_policy::id() == 0);
         // read parameters
-        io::cl_options options = io::read_options(argc, argv, global_policy::id() == 0);
+        hippo::cl_options options = hippo::read_options(argc, argv, global_policy::id() == 0);
 
         // If compiled in dry run mode we have to set up the dry run
         // communicator to simulate the number of ranks that may have been set
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
             report_compartment_stats(*recipe);
         }
 
-        auto register_exporter = [](const io::cl_options& options) {
+        auto register_exporter = [](const hippo::cl_options& options) {
             return
                 util::make_unique<file_export_type>(
                     options.file_name, options.output_path,
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
             fid << std::setw(1) << util::to_json(report) << "\n";
         }
     }
-    catch (io::usage_error& e) {
+    catch (hippo::usage_error& e) {
         // only print usage/startup errors on master
         std::cerr << util::mask_stream(global_policy::id() == 0);
         std::cerr << e.what() << "\n";
@@ -203,7 +203,7 @@ void banner(hw::node_info nd) {
     std::cout << "==========================================\n";
 }
 
-std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_distribution& pdist) {
+std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const probe_distribution& pdist) {
     basic_recipe_param p;
 
     if (options.morphologies) {
@@ -224,6 +224,9 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
     if (options.spike_file_input) {
         p.input_spike_path = options.input_spike_path;
     }
+
+
+
 
     return make_hippo_recipe(p, pdist);
 }

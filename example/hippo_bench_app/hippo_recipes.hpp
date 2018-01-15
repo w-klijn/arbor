@@ -43,6 +43,9 @@ struct basic_recipe_param {
     // If set we are importing the spikes injected in the network from file
     // instead of a single spike at t==0
     util::optional<std::string> input_spike_path;  // Path to file with spikes
+
+    util::optional<std::string> populations_json;
+    util::optional<std::string> connectome_json;
 };
 
 
