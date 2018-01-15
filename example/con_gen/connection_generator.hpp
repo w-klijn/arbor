@@ -152,27 +152,24 @@ public:
 
     arb::cell_kind get_cell_kind(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
-        arb::cell_kind kind;
+
         for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
             if (gid >= population_ranges[idx].first &&
                 gid < population_ranges[idx].second)
-                kind =  populations_[idx].kind;
+                return populations_[idx].kind;
         }
-        return kind;
     }
 
 
     // Returns a json file with the options for gid
     nlohmann::json const get_cell_opts(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
-        nlohmann::json options;
+
         for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
             if (gid >= population_ranges[idx].first &&
                 gid < population_ranges[idx].second)
-                options = populations_[idx].cell_opts;
+                return populations_[idx].cell_opts;
         }
-
-        return options;
     }
 
     // Returns the number of synapses on this cell
@@ -197,8 +194,8 @@ public:
             // Distribution to draw the weights
             std::normal_distribution<float> weight_distr(pro_pars.weight_mean, pro_pars.weight_sd);
 
-            //// Used to assure correct weight sign
-            //float weight_sign = arb::math::signum(pro_pars.weight_mean);
+            // Used to assure correct weight sign
+            float weight_sign = arb::math::signum(pro_pars.weight_mean);
 
             // Check if this gid receives connections via this projection
             // TODO: Replace with the fancy in range function we have somewhere in the utils
