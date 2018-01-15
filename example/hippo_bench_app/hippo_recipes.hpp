@@ -44,8 +44,8 @@ struct basic_recipe_param {
     // instead of a single spike at t==0
     util::optional<std::string> input_spike_path;  // Path to file with spikes
 
-    util::optional<std::string> populations_json;
-    util::optional<std::string> connectome_json;
+    util::optional<std::string> json_populations;
+    util::optional<std::string> json_connectome;
 };
 
 

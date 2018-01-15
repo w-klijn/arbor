@@ -86,8 +86,7 @@ class hippo_recipe: public recipe {
 public:
     hippo_recipe(basic_recipe_param param, probe_distribution pdist):
         // TODO fix ncless
-        param_(std::move(param)), pdist_(std::move(pdist)),
-        con_gen_(con_gen_util::default_populations(), con_gen_util::default_connectome())
+        param_(std::move(param)), pdist_(std::move(pdist))
     {
         // Cells are not allowed to connect to themselves; hence there must be least two cells
         // to build a connected network.
@@ -95,6 +94,9 @@ public:
         EXPECTS(param_.morphologies.size()>0);
         delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
                             - param_.min_connection_delay_ms};
+
+        con_gen_ = arb_con_gen::connection_generator(
+            con_gen_util::default_populations(), con_gen_util::default_connectome());
     }
 
     cell_size_type num_cells() const override {

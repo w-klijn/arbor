@@ -225,8 +225,15 @@ std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const prob
         p.input_spike_path = options.input_spike_path;
     }
 
+    if (options.json_connectome) {
+        EXPECTS(options.json_populations);
+        p.json_connectome = options.json_connectome;
+    }
 
-
+    if (options.json_populations) {
+        EXPECTS(options.json_connectome);
+        p.json_populations = options.json_populations;
+    }
 
     return make_hippo_recipe(p, pdist);
 }

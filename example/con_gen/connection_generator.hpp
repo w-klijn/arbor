@@ -139,6 +139,11 @@ public:
         n_cells_ = gid_idx;
     }
 
+    connection_generator() {
+        n_cells_ = 0;
+    }
+
+
     // Get the total count of cells on this connection generator
     // TODO: Refactor to connection generator and neuron generator
     arb::cell_size_type num_cells() const {
