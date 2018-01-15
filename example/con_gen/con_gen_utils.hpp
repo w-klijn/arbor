@@ -184,8 +184,8 @@ namespace con_gen_util {
     std::vector<arb_con_gen::population> default_populations() {
         std::vector<arb_con_gen::population> default_populations;
 
-        default_populations.push_back({"population_1", 10, 10, true });
-        default_populations.push_back({"population_2", 10, 10, true });
+        default_populations.push_back({"population_1", 10, 10, true, arb::cell_kind::cable1d_neuron });
+        default_populations.push_back({"population_2", 10, 10, true, arb::cell_kind::cable1d_neuron });
 
         return default_populations;
     }
