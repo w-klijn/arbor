@@ -80,7 +80,7 @@ namespace hippo_bench {
                 std::istringstream iss(line);
                 if (!(iss >> x_dim >> comma >> y_dim >> comma >> periodic)) {
                     break; }
-                populations.push_back({ x_dim, y_dim, periodic });
+                populations.push_back({"", x_dim, y_dim, periodic });
 
             }
         }

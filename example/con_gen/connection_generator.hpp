@@ -14,112 +14,113 @@
 #include <math.hpp>
 #include <random>
 #include <util/debug.hpp>
+#include <json/json.hpp>
 
 namespace arb_con_gen {
 
-    using namespace arb;
+using namespace arb;
 
-    // Describes a 2d surface of neurons located on grid locations
-    // -x_dim   number of neurons on the x-side
-    // -y_dim   number of neurons on the y-side
-    // -periodic Do the border loop back to the other side (torus topology)
-    struct population {
-        std::string name;
-        cell_size_type x_dim;
-        cell_size_type y_dim;
-        bool periodic;
+// Describes a 2d surface of neurons located on grid locations
+// -x_dim   number of neurons on the x-side
+// -y_dim   number of neurons on the y-side
+// -periodic Do the border loop back to the other side (torus topology)
+struct population {
+    std::string name;
+    cell_size_type x_dim;
+    cell_size_type y_dim;
+    bool periodic;
 
-        cell_size_type n_cells;
-        cell_kind kind;
+    cell_size_type n_cells;
+    cell_kind kind;
 
-        // TODO: enum topology_type ( grid, pure random, minimal distance)
+    // TODO: enum topology_type ( grid, pure random, minimal distance)
 
-        population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per, cell_kind kind) :
-           name(name), x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
-        {
+    population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per, cell_kind kind) :
+        name(name), x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
+    {
 
-            // Sanity check
-            EXPECTS(x_dim > 0);
-            EXPECTS(y_dim > 0);
-        }
+        // Sanity check
+        EXPECTS(x_dim > 0);
+        EXPECTS(y_dim > 0);
+    }
 
-        // TODOW: Use a temperary default for the cell kind
-        population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per) :
-            name(name),x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(arb::cell_kind::cable1d_neuron)
-        {
+    // TODOW: Use a temperary default for the cell kind
+    population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per) :
+        name(name),x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(arb::cell_kind::cable1d_neuron)
+    {
 
-            // Sanity check
-            EXPECTS(x_dim > 0);
-            EXPECTS(y_dim > 0);
-        }
+        // Sanity check
+        EXPECTS(x_dim > 0);
+        EXPECTS(y_dim > 0);
+    }
 
-    };
+};
 
-    // Describes a projection between the neurons between two populations
-    // - sd      sd of the normal distributed used to sample the pre_synaptic
-    //           The dimensions of the pre-population is sampled as if it has size 1.0 * 1.0
-    // - count   Number of samples to take. When sampling from a non periodic population
-    //           this count can be lower (akin with a sample in-vitro)
-    //
-    // - weight_mean  Mean synaptic weight for the created synapse
-    // - weight_sd    Standard deviation around mean for sampling the weights
-    //
-    // - delay_min      Minimal delay of the created synapse
-    // - delay_per_sd   Delay increase by sd distance between neurons
-    struct projection_pars {
-        float sd = 0.02;
-        cell_size_type count;
+// Describes a projection between the neurons between two populations
+// - sd      sd of the normal distributed used to sample the pre_synaptic
+//           The dimensions of the pre-population is sampled as if it has size 1.0 * 1.0
+// - count   Number of samples to take. When sampling from a non periodic population
+//           this count can be lower (akin with a sample in-vitro)
+//
+// - weight_mean  Mean synaptic weight for the created synapse
+// - weight_sd    Standard deviation around mean for sampling the weights
+//
+// - delay_min      Minimal delay of the created synapse
+// - delay_per_sd   Delay increase by sd distance between neurons
+struct projection_pars {
+    float sd = 0.02;
+    cell_size_type count;
 
-        // parameters for the synapses on this projection
-        float weight_mean;
-        float weight_sd;
+    // parameters for the synapses on this projection
+    float weight_mean;
+    float weight_sd;
 
-        float delay_min;        // Minimal delay
-        float delay_per_sd;    // per
+    float delay_min;        // Minimal delay
+    float delay_per_sd;    // per
 
-        projection_pars(float var, cell_size_type count, float weight_mean,
-            float weight_std, float delay_min, float delay_per_std) :
-            sd(var), count(count),
-            weight_mean(weight_mean), weight_sd(weight_std),
-            delay_min(delay_min), delay_per_sd(delay_per_std)
-        {
-            // Sanity checks
-            EXPECTS(sd > 0.0);
-            EXPECTS(count > 0);
-            EXPECTS(weight_mean > 0);
-            EXPECTS(weight_std > 0);
-            EXPECTS(delay_min > 1.0); // TODO: This a neuroscientific 'fact' not needed for valid functioning
-            EXPECTS(delay_per_std > 0.0);
-        }
-    };
+    projection_pars(float var, cell_size_type count, float weight_mean,
+        float weight_std, float delay_min, float delay_per_std) :
+        sd(var), count(count),
+        weight_mean(weight_mean), weight_sd(weight_std),
+        delay_min(delay_min), delay_per_sd(delay_per_std)
+    {
+        // Sanity checks
+        EXPECTS(sd > 0.0);
+        EXPECTS(count > 0);
+        EXPECTS(weight_mean > 0);
+        EXPECTS(weight_std > 0);
+        EXPECTS(delay_min > 1.0); // TODO: This a neuroscientific 'fact' not needed for valid functioning
+        EXPECTS(delay_per_std > 0.0);
+    }
+};
 
-    // Helper struct to collect some parameters together for creating projections
-    // -pre_idx    The index in the population list that is pre synaptic for this
-    //             projection
-    // -post_idx   The index in the population list that is post synaptic for this
-    //             projection
-    // -pars       Parameters used to generate the synapses for this connection
-    struct projection {
-        size_t pre_idx;
-        size_t post_idx;
-        projection_pars pars;
+// Helper struct to collect some parameters together for creating projections
+// -pre_idx    The index in the population list that is pre synaptic for this
+//             projection
+// -post_idx   The index in the population list that is post synaptic for this
+//             projection
+// -pars       Parameters used to generate the synapses for this connection
+struct projection {
+    size_t pre_idx;
+    size_t post_idx;
+    projection_pars pars;
 
-        projection(size_t pre_population, size_t post_population, projection_pars pars) :
-            pre_idx(pre_population), post_idx(post_population), pars(pars)
-        {}
-    };
+    projection(size_t pre_population, size_t post_population, projection_pars pars) :
+        pre_idx(pre_population), post_idx(post_population), pars(pars)
+    {}
+};
 
-    // Return type for connection generation
-    // A set of pre-synaptic cell gid,
-    // weight and delay
-    struct synaps_pars {
-        cell_gid_type gid;
-        float weight;
-        float delay;
-        synaps_pars(cell_gid_type gid, float weight, float delay ):
-             gid(gid),  weight(weight), delay(delay)
-        {}
-    };
+// Return type for connection generation
+// A set of pre-synaptic cell gid,
+// weight and delay
+struct synaps_pars {
+    cell_gid_type gid;
+    float weight;
+    float delay;
+    synaps_pars(cell_gid_type gid, float weight, float delay) :
+        gid(gid), weight(weight), delay(delay)
+    {}
+};
 
 class connection_generator {
 
@@ -129,7 +130,7 @@ public:
     // between these
     // TODO: This is a first implementation: sub populations are NOT implemented
     connection_generator(const std::vector<population> & populations,
-        std::vector<projection> connectome):
+        std::vector<projection> connectome) :
         connectome_(std::move(connectome))
     {
         cell_gid_type gid_idx = 0;
@@ -137,9 +138,12 @@ public:
         // Create the local populations with start index set
         for (auto pop : populations) {
             populations_.push_back(population_indexed(
-                pop.x_dim, pop.y_dim, pop.periodic, gid_idx ));
+                pop.x_dim, pop.y_dim, pop.periodic, gid_idx));
 
+
+            population_ranges.push_back({ gid_idx, gid_idx + pop.n_cells });
             gid_idx += pop.n_cells;
+
         }
 
         n_cells_ = gid_idx;
@@ -151,7 +155,17 @@ public:
         return n_cells_;
     }
 
-    // Returns a vector of all synaptic parameters sets for this gid
+    cell_kind get_cell_kind(cell_gid_type gid) const {
+        EXPECTS(gid < n_cells_);
+
+        for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
+            if (gid >= population_ranges[idx].first &&
+                gid < population_ranges[idx].second)
+                return populations_[idx].kind;
+        }
+    }
+
+    // Returns the number of synapses on this cell
     cell_size_type num_synapses_on(cell_gid_type gid) const {
         std::mt19937 gen;
         gen.seed(gid);
@@ -371,6 +385,10 @@ private:
 
     // Number of cells in this connection class
     cell_size_type n_cells_;
+
+    // TODO convert to span
+    std::vector<std::pair<cell_gid_type, cell_gid_type>> population_ranges;
+
 };
 
 }

@@ -85,7 +85,7 @@ public:
     hippo_recipe(basic_recipe_param param, probe_distribution pdist):
         // TODO fix ncless
         param_(std::move(param)), pdist_(std::move(pdist)),
-        con_gen(con_gen_util::default_populations(), con_gen_util::default_connectome())
+        con_gen_(con_gen_util::default_populations(), con_gen_util::default_connectome())
     {
         // Cells are not allowed to connect to themselves; hence there must be least two cells
         // to build a connected network.
@@ -96,30 +96,34 @@ public:
     }
 
     cell_size_type num_cells() const override {
-        return con_gen.num_cells();
+        return con_gen_.num_cells();
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
-        // The last 'cell' is a spike source cell. Either a regular spiking
-        // or a spikes from file.
 
-        auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
+        auto kind = con_gen_.get_cell_kind(i);
 
-        const auto& morph = get_morphology(i);
-        unsigned cell_segments = morph.components();
+        if (kind == arb::cell_kind::cable1d_neuron) {
+            auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
+            const auto& morph = get_morphology(i);
+            unsigned cell_segments = morph.components();
+            auto cell = make_basic_cell(morph, param_.num_compartments, con_gen_.num_synapses_on(i),
+                param_.synapse_type, gen);
 
-        auto cell = make_basic_cell(morph, param_.num_compartments, con_gen.num_synapses_on(i),
-                        param_.synapse_type, gen);
+            EXPECTS(cell.num_segments() == cell_segments);
 
-        EXPECTS(cell.num_segments()==cell_segments);
+            return util::unique_any(std::move(cell));
+        }
+        if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
 
-        return util::unique_any(std::move(cell));
+        }
+
     }
 
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
-        auto connections = con_gen.synapses_on(i);
+        auto connections = con_gen_.synapses_on(i);
         unsigned tag_idx = 0;
         for (auto& syn_par : connections) {
             conns.push_back(cell_connection(
@@ -199,7 +203,7 @@ protected:
 
     exp_param delay_distribution_param_;
 
-    arb_con_gen::connection_generator con_gen;
+    arb_con_gen::connection_generator con_gen_;
 
 
 
