@@ -43,7 +43,7 @@ using file_export_type = io::exporter_spike_file<global_policy>;
 using communicator_type = communication::communicator<communication::global_policy>;
 
 void banner(hw::node_info);
-std::unique_ptr<recipe> make_recipe(const hippo::cl_options&, const probe_distribution&);
+std::unique_ptr<recipe> make_recipe(const hippo::cl_options&, const hippo::probe_distribution&);
 sample_trace make_trace(const probe_info& probe);
 
 void report_compartment_stats(const recipe&);
@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
         meters.checkpoint("setup");
 
         // determine what to attach probes to
-        probe_distribution pdist;
+        hippo::probe_distribution pdist;
         pdist.proportion = options.probe_ratio;
         pdist.all_segments = !options.probe_soma_only;
 
@@ -203,8 +203,8 @@ void banner(hw::node_info nd) {
     std::cout << "==========================================\n";
 }
 
-std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const probe_distribution& pdist) {
-    basic_recipe_param p;
+std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const hippo::probe_distribution& pdist) {
+    hippo::basic_recipe_param p;
 
     if (options.morphologies) {
         std::cout << "loading morphologies...\n";
@@ -227,15 +227,15 @@ std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const prob
 
     if (options.json_connectome) {
         EXPECTS(options.json_populations);
-        p.json_connectome = options.json_connectome;
+        p.json_connectome = options.json_connectome.value();
     }
 
     if (options.json_populations) {
         EXPECTS(options.json_connectome);
-        p.json_populations = options.json_populations;
+        p.json_populations = options.json_populations.value();
     }
 
-    return make_hippo_recipe(p, pdist);
+    return hippo::make_hippo_recipe(p, pdist);
 }
 
 sample_trace make_trace(const probe_info& probe) {

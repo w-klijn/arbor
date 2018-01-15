@@ -46,7 +46,6 @@ namespace con_gen_util {
     // }
     std::vector<arb_con_gen::population> parse_populations_from_path(std::string path) {
         std::vector<arb_con_gen::population> populations;
-
         std::ifstream fid(path);
         if (fid) {
             try {
@@ -107,7 +106,6 @@ namespace con_gen_util {
         //char comma;
 
         std::vector<arb_con_gen::projection> projection;
-
         std::ifstream fid(path);
         if (fid) {
             try {
@@ -145,7 +143,7 @@ namespace con_gen_util {
             }
         }
         else {
-            throw con_gen_error("Unable to open file" + path);
+            throw con_gen_error("Unable to open file:" + path);
         }
 
         return projection;

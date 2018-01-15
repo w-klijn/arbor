@@ -21,8 +21,9 @@
 #include "../con_gen/connection_generator.hpp"
 #include "../con_gen/con_gen_utils.hpp"
 
+using namespace arb;
 
-namespace arb {
+namespace hippo {
 
 // TODO: split cell description into separate morphology, stimulus, mechanisms etc.
 // description for greater data reuse.
@@ -84,7 +85,7 @@ cell make_basic_cell(
 
 class hippo_recipe: public recipe {
 public:
-    hippo_recipe(basic_recipe_param param, probe_distribution pdist):
+    hippo_recipe(hippo::basic_recipe_param param, hippo::probe_distribution pdist):
         // TODO fix ncless
         param_(std::move(param)), pdist_(std::move(pdist))
     {
@@ -95,11 +96,10 @@ public:
         delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
                             - param_.min_connection_delay_ms};
 
-        if (param.json_connectome && param.json_populations) {
+        if (param_.json_connectome && param_.json_populations) {
             con_gen_ = arb_con_gen::connection_generator(
-                con_gen_util::parse_populations_from_path(param.json_populations.value()),
-
-                con_gen_util::default_connectome());
+                con_gen_util::parse_populations_from_path(param_.json_populations.value()),
+                con_gen_util::parse_projections_from_path(param_.json_connectome.value()));
         }
         else {
             con_gen_ = arb_con_gen::connection_generator(
@@ -125,7 +125,6 @@ public:
                 param_.synapse_type, gen);
 
             EXPECTS(cell.num_segments() == cell_segments);
-
             return util::unique_any(std::move(cell));
         }
         else // (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
@@ -212,9 +211,9 @@ public:
 
 protected:
 
-    basic_recipe_param param_;
+    hippo::basic_recipe_param param_;
 
-    probe_distribution pdist_;
+    hippo::probe_distribution pdist_;
 
     using exp_param = std::exponential_distribution<float>::param_type;
 
@@ -241,13 +240,13 @@ protected:
 };
 
 
-std::unique_ptr<recipe> make_hippo_recipe(
-        basic_recipe_param param,
-        probe_distribution pdist)
-{
+std::unique_ptr<arb::recipe> make_hippo_recipe(
+    hippo::basic_recipe_param param,
+    hippo::probe_distribution pdist) {
     return std::unique_ptr<recipe>(new hippo_recipe(param, pdist));
 }
 
 
 
-} // namespace arb
+} // namespace hippo
+

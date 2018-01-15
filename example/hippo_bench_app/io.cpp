@@ -99,11 +99,12 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     }
 
     if (json_connectome) {
-        options.json_connectome = json_connectome;
+        options.json_connectome = json_connectome.value();
+
     }
 
     if (json_populations) {
-        options.json_populations = json_populations;
+        options.json_populations = json_populations.value();
     }
 
     if (json_output && allow_write)
