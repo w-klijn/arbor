@@ -24,6 +24,7 @@ namespace arb_con_gen {
     // -y_dim   number of neurons on the y-side
     // -periodic Do the border loop back to the other side (torus topology)
     struct population {
+        std::string name;
         cell_size_type x_dim;
         cell_size_type y_dim;
         bool periodic;
@@ -33,8 +34,8 @@ namespace arb_con_gen {
 
         // TODO: enum topology_type ( grid, pure random, minimal distance)
 
-        population(cell_size_type x_dim, cell_size_type y_dim, bool per, cell_kind kind) :
-            x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
+        population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per, cell_kind kind) :
+           name(name), x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
         {
 
             // Sanity check
@@ -43,8 +44,8 @@ namespace arb_con_gen {
         }
 
         // TODOW: Use a temperary default for the cell kind
-        population(cell_size_type x_dim, cell_size_type y_dim, bool per) :
-            x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(arb::cell_kind::cable1d_neuron)
+        population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per) :
+            name(name),x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(arb::cell_kind::cable1d_neuron)
         {
 
             // Sanity check
@@ -361,7 +362,7 @@ private:
 
         population_indexed(cell_size_type x_dim, cell_size_type y_dim, bool periodic,
             cell_gid_type start_index) :
-            population(x_dim, y_dim, periodic), start_index(start_index)
+            population("", x_dim, y_dim, periodic), start_index(start_index)
         {}
     };
 

@@ -11,7 +11,7 @@
 
 #include <common_types.hpp>
 #include <util/debug.hpp>
-
+#include <json/json.hpp>
 #include "connection_generator.hpp"
 
 namespace con_gen_util {
@@ -30,64 +30,56 @@ namespace con_gen_util {
         std::string what_;
     };
 
+    arb::cell_kind cell_kind_from_string(std::string str);
 
-    // Simple population parser. Expects a csv like file of population.
+
+    // Simple population parser. Expects a json like file of populations.
     // On error parsing will stop and what is parsed until then is returned
-    // throws a con_gen_error when file cannot be opened
-    // The lines are parsed separated by a single comma:
-    // [x_dim, y_dim, periodic]
-    // with types:
-    // unsigned, unsigned, 0 -or- 1
+    // throws a con_gen_errors when there are problems opening or parsing
+    // {"population_1":
+    //      {
+    //          "x_dim":10,
+    //           "y_dim" : 10,
+    //          "periodic_border" : true,
+    //          "cell_type" : "cable1d_neuron"
+    //      }
+    // }
     std::vector<arb_con_gen::population> parse_populations_from_path(std::string path) {
-        std::ifstream infile(path);
-        arb::cell_gid_type x_dim;
-        arb::cell_gid_type y_dim;
-        bool periodic;
-        char comma;
-
         std::vector<arb_con_gen::population> populations;
 
-        // Regex parsing start
-        //std::regex e;
-        //std::smatch match;
-        //e = "^\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*((?i)(true|false))\\s*";  // usigned , usigned , true
-        //std::cout << "debug" << std::endl;
-        //if (infile) {
-        //    std::string line;
+        std::ifstream fid(path);
+        if (fid) {
+            try {
+                nlohmann::json fopts;
+                fid >> fopts;
 
-        //    while (std::getline(infile, line)) {
-        //        std::istringstream iss(line);
+                // Loop over the 'json' population entries
+                for (nlohmann::json::iterator it = fopts.begin(); it != fopts.end(); ++it) {
+                    try {
+                        std::string name = it.key();
+                        arb::cell_size_type x_dim = it.value()["x_dim"];
+                        arb::cell_size_type y_dim = it.value()["y_dim"];
+                        bool periodic = it.value()["periodic_border"];
+                        arb::cell_kind kind = cell_kind_from_string(it.value()["cell_type"]);
 
-        //        std::cout << "debug" << std::endl;
-        //        if (std::regex_search(line, match, e))
-        //        {
-        //            std::cout << "match: " << match[0] << '\n';
-        //            std::cout << "match: " << match[1] << '\n';
-        //            std::cout << "match: " << match[2] << '\n';
-
-        //        }
-
-
-        //        populations.push_back({ x_dim, y_dim, periodic });
-
-        //    }
-        //}
-
-
-        if (infile) {
-            std::string line;
-            while (std::getline(infile, line)){
-                std::istringstream iss(line);
-                if (!(iss >> x_dim >> comma >> y_dim >> comma >> periodic)) {
-                    break; }
-                populations.push_back({ x_dim, y_dim, periodic });
-
+                        populations.push_back({name, x_dim, y_dim, periodic, kind});
+                    }
+                    catch (std::exception& e) {
+                        std::cerr << "Could not parse:\n" << it.value() << "\n";
+                        throw con_gen_error(
+                            "Could not parse entry in: " + path + ": " + e.what());
+                    }
+                }
+            }
+            catch (std::exception& e) {
+                throw con_gen_error(
+                    "unable to parse parameters in " + path + ": " + e.what());
             }
         }
         else {
-            throw con_gen_error("Could not open supplied population config");
+            throw con_gen_error("Unable to open file" + path);
         }
-        std::cout << "Debug 2" << std::endl;
+
         return populations;
     }
 
@@ -192,8 +184,8 @@ namespace con_gen_util {
     std::vector<arb_con_gen::population> default_populations() {
         std::vector<arb_con_gen::population> default_populations;
 
-        default_populations.push_back({ 10, 10, true });
-        default_populations.push_back({ 10, 10, true });
+        default_populations.push_back({"population_1", 10, 10, true });
+        default_populations.push_back({"population_2", 10, 10, true });
 
         return default_populations;
     }
