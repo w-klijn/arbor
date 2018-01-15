@@ -135,7 +135,9 @@ public:
             populations_.insert({ idx, population_indexed(
                 pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx) });
 
-            population_ranges.push_back({ gid_idx, gid_idx + pop.n_cells });
+            population_ranges.push_back(
+                std::tuple<arb::cell_gid_type, arb::cell_gid_type, unsigned>(
+                        gid_idx, gid_idx + pop.n_cells, idx ));
             gid_idx += pop.n_cells;
             idx++;
         }
@@ -157,10 +159,9 @@ public:
     arb::cell_kind get_cell_kind(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
         arb::cell_kind kind;
-        for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
-            if (gid >= population_ranges[idx].first &&
-                gid < population_ranges[idx].second)
-                kind = populations_.at(idx).kind;
+        for (auto& it: population_ranges) {
+            if (gid >= std::get<0>(it) && gid < std::get<1>(it))
+                kind = populations_.at(std::get<2>(it)).kind;
         }
 
         return kind;
@@ -172,10 +173,9 @@ public:
         EXPECTS(gid < n_cells_);
         nlohmann::json options;
 
-        for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
-            if (gid >= population_ranges[idx].first &&
-                gid < population_ranges[idx].second)
-                options = nlohmann::json(populations_.at(idx).cell_opts);
+        for (auto& it : population_ranges) {
+            if (gid >= std::get<0>(it) && gid < std::get<1>(it))
+                options = populations_.at(std::get<2>(it)).cell_opts;
         }
         return options;
     }
@@ -403,7 +403,7 @@ private:
     arb::cell_size_type n_cells_;
 
     // TODO convert to span
-    std::vector<std::pair<arb::cell_gid_type, arb::cell_gid_type>> population_ranges;
+    std::vector<std::tuple<arb::cell_gid_type, arb::cell_gid_type, unsigned>> population_ranges;
 
 };
 
