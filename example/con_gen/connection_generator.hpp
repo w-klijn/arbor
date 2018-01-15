@@ -95,11 +95,11 @@ struct projection_pars {
 //             projection
 // -pars       Parameters used to generate the synapses for this connection
 struct projection {
-    size_t pre_idx;
-    size_t post_idx;
+    std::string pre_idx;
+    std::string post_idx;
     projection_pars pars;
 
-    projection(size_t pre_population, size_t post_population, projection_pars pars) :
+    projection(std::string pre_population, std::string post_population, projection_pars pars) :
         pre_idx(pre_population), post_idx(post_population), pars(pars)
     {}
 };
@@ -130,16 +130,15 @@ public:
         arb::cell_gid_type gid_idx = 0;
 
         // Create the local populations with start index set
-        unsigned idx = 0;
         for (auto pop : populations) {
-            populations_.insert({ idx, population_indexed(
+            populations_.insert({ pop.name, population_indexed(
                 pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx) });
 
             population_ranges.push_back(
-                std::tuple<arb::cell_gid_type, arb::cell_gid_type, unsigned>(
-                        gid_idx, gid_idx + pop.n_cells, idx ));
+                std::tuple<arb::cell_gid_type, arb::cell_gid_type, std::string>(
+                        gid_idx, gid_idx + pop.n_cells, pop.name ));
+
             gid_idx += pop.n_cells;
-            idx++;
         }
 
         n_cells_ = gid_idx;
@@ -182,6 +181,7 @@ public:
 
     // Returns the number of synapses on this cell
     arb::cell_size_type num_synapses_on(arb::cell_gid_type gid) const {
+
         std::mt19937 gen;
         gen.seed(gid);
 
@@ -191,8 +191,8 @@ public:
         for (auto project : connectome_) {
 
             // Sanity check that the populations exist
-            EXPECTS(project.pre_idx < populations_.size());
-            EXPECTS(project.post_idx < populations_.size());
+            EXPECTS(populations_.count(project.pre_idx));
+            EXPECTS(populations_.count(project.post_idx));
 
             // Shorthand for the pre and post populations
             auto pre_pop = populations_.at(project.pre_idx);
@@ -254,8 +254,8 @@ public:
         for (auto project : connectome_) {
 
             // Sanity check that the populations exist
-            EXPECTS(project.pre_idx < populations_.size());
-            EXPECTS(project.post_idx < populations_.size());
+            EXPECTS(populations_.count(project.pre_idx));
+            EXPECTS(populations_.count(project.post_idx));
 
             // Shorthand for the pre and post populations
             auto pre_pop = populations_.at(project.pre_idx);
@@ -396,14 +396,14 @@ private:
         {}
     };
 
-    std::map<unsigned, population_indexed> populations_;
+    std::map<std::string, population_indexed> populations_;
     std::vector<projection> connectome_;
 
     // Number of cells in this connection class
     arb::cell_size_type n_cells_;
 
     // TODO convert to span
-    std::vector<std::tuple<arb::cell_gid_type, arb::cell_gid_type, unsigned>> population_ranges;
+    std::vector<std::tuple<arb::cell_gid_type, arb::cell_gid_type, std::string>> population_ranges;
 
 };
 

@@ -119,8 +119,8 @@ namespace con_gen_util {
                     try {
                         std::string name = it.key();
 
-                        size_t population_pre = it.value()["population_pre"];
-                        size_t population_post = it.value()["population_post"];;
+                        std::string population_pre = it.value()["population_pre"];
+                        std::string population_post = it.value()["population_post"];;
                         unsigned count = it.value()["count"];
                         float    std_2d_kernel = it.value()["std_2d_kernel"];
                         float    weight_mean = it.value()["weight_mean"];
@@ -231,8 +231,8 @@ namespace con_gen_util {
     // 1 > 0. count 1000, ds 0.1 | weight -mean 2.0 -sd 1.0 | delay 1.0 -sd 1.0
     std::vector<arb_con_gen::projection> default_connectome() {
         std::vector<arb_con_gen::projection>  connectome;
-        connectome.push_back({ 0,1,{  8, 0.02, 2.0, 1.0, 1.0, 1.0 } });
-        connectome.push_back({ 1,0,{  10,0.05, 2.0, 1.0, 1.0, 1.0 } });
+        connectome.push_back({ "population_1","population_2",{  8, 0.02, 2.0, 1.0, 1.0, 1.0 } });
+        connectome.push_back({ "population_2","population_1",{  10,0.05, 2.0, 1.0, 1.0, 1.0 } });
 
         return connectome;
     }
