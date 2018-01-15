@@ -6,6 +6,7 @@
 #include <cell.hpp>
 #include <dss_cell_description.hpp>
 #include <event_generator.hpp>
+#include <ipss_cell.hpp>
 #include <rss_cell.hpp>
 #include <morphology.hpp>
 #include <common_types.hpp>
@@ -14,6 +15,7 @@
 
 #include "io.hpp"
 #include "hippo_recipes.hpp"
+
 #include "../miniapp/morphology_pool.hpp"
 
 #include "../con_gen/connection_generator.hpp"
@@ -116,6 +118,9 @@ public:
         }
         if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
 
+            nlohmann::json const otps = con_gen_.get_cell_opts(i);
+            ipss_cell_description cell(otps);
+            return util::unique_any(std::move(cell));
         }
 
     }

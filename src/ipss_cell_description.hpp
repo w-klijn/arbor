@@ -33,7 +33,7 @@ struct ipss_cell_description {
     {}
 
     // Collect all the cell parameters from its json description
-    ipss_cell_description(nlohmann::json& cell_options) {
+    ipss_cell_description(nlohmann::json const& cell_options) {
         start_time = cell_options["start_time"];
         stop_time = cell_options["stop_time"];
         sample_delta = cell_options["sample_delta"];

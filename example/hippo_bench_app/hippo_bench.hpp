@@ -47,33 +47,6 @@ namespace hippo_bench {
 
         std::vector<arb_con_gen::population> populations;
 
-        // Regex parsing start
-        //std::regex e;
-        //std::smatch match;
-        //e = "^\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*((?i)(true|false))\\s*";  // usigned , usigned , true
-        //std::cout << "debug" << std::endl;
-        //if (infile) {
-        //    std::string line;
-
-        //    while (std::getline(infile, line)) {
-        //        std::istringstream iss(line);
-
-        //        std::cout << "debug" << std::endl;
-        //        if (std::regex_search(line, match, e))
-        //        {
-        //            std::cout << "match: " << match[0] << '\n';
-        //            std::cout << "match: " << match[1] << '\n';
-        //            std::cout << "match: " << match[2] << '\n';
-
-        //        }
-
-
-        //        populations.push_back({ x_dim, y_dim, periodic });
-
-        //    }
-        //}
-
-
         if (infile) {
             std::string line;
             while (std::getline(infile, line)){

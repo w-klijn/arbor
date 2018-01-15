@@ -155,6 +155,18 @@ public:
         }
     }
 
+
+    // Returns a json file with the options for gid
+    nlohmann::json const get_cell_opts(arb::cell_gid_type gid) const {
+        EXPECTS(gid < n_cells_);
+
+        for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
+            if (gid >= population_ranges[idx].first &&
+                gid < population_ranges[idx].second)
+                return populations_[idx].cell_opts;
+        }
+    }
+
     // Returns the number of synapses on this cell
     arb::cell_size_type num_synapses_on(arb::cell_gid_type gid) const {
         std::mt19937 gen;
