@@ -31,11 +31,13 @@ struct population {
 
     arb::cell_size_type n_cells;
     arb::cell_kind kind;
+    nlohmann::json cell_opts;
 
     // TODO: enum topology_type ( grid, pure random, minimal distance)
 
-    population(std::string name, arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool per, arb::cell_kind kind) :
-        name(name), x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
+    population(std::string name, arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool per,
+        arb::cell_kind kind, nlohmann::json cell_opts = {}) :
+        name(name), x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind), cell_opts(cell_opts)
     {
 
         // Sanity check
@@ -128,12 +130,10 @@ public:
         // Create the local populations with start index set
         for (auto pop : populations) {
             populations_.push_back(population_indexed(
-                pop.x_dim, pop.y_dim, pop.periodic, pop.kind, gid_idx));
-
+                pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx));
 
             population_ranges.push_back({ gid_idx, gid_idx + pop.n_cells });
             gid_idx += pop.n_cells;
-
         }
 
         n_cells_ = gid_idx;
@@ -365,8 +365,8 @@ private:
         arb::cell_gid_type start_index;
 
         population_indexed(arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool periodic,
-            arb::cell_kind kind, arb::cell_gid_type start_index) :
-            population("", x_dim, y_dim, periodic, kind), start_index(start_index)
+            arb::cell_kind kind, nlohmann::json cell_opts, arb::cell_gid_type start_index) :
+            population("", x_dim, y_dim, periodic, kind, cell_opts), start_index(start_index)
         {}
     };
 

@@ -62,7 +62,9 @@ namespace con_gen_util {
                         bool periodic = it.value()["periodic_border"];
                         arb::cell_kind kind = cell_kind_from_string(it.value()["cell_type"]);
 
-                        populations.push_back({name, x_dim, y_dim, periodic, kind});
+                        nlohmann::json cell_opts = it.value()["cell_opts"];
+
+                        populations.push_back({name, x_dim, y_dim, periodic, kind, cell_opts});
                     }
                     catch (std::exception& e) {
                         std::cerr << "Could not parse:\n" << it.value() << "\n";
