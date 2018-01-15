@@ -8,6 +8,8 @@
 #include <utility>
 #include <tuple>
 #include <math.h>
+#include <map>
+#include <string>
 
 
 #include <common_types.hpp>
@@ -128,12 +130,14 @@ public:
         arb::cell_gid_type gid_idx = 0;
 
         // Create the local populations with start index set
+        unsigned idx = 0;
         for (auto pop : populations) {
-            populations_.push_back(population_indexed(
-                pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx));
+            populations_.insert({ idx, population_indexed(
+                pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx) });
 
             population_ranges.push_back({ gid_idx, gid_idx + pop.n_cells });
             gid_idx += pop.n_cells;
+            idx++;
         }
 
         n_cells_ = gid_idx;
@@ -156,7 +160,7 @@ public:
         for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
             if (gid >= population_ranges[idx].first &&
                 gid < population_ranges[idx].second)
-                kind =  populations_[idx].kind;
+                kind = populations_.at(idx).kind;
         }
 
         return kind;
@@ -171,7 +175,7 @@ public:
         for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
             if (gid >= population_ranges[idx].first &&
                 gid < population_ranges[idx].second)
-                options = nlohmann::json(populations_[idx].cell_opts);
+                options = nlohmann::json(populations_.at(idx).cell_opts);
         }
         return options;
     }
@@ -191,8 +195,8 @@ public:
             EXPECTS(project.post_idx < populations_.size());
 
             // Shorthand for the pre and post populations
-            auto pre_pop = populations_[project.pre_idx];
-            auto post_pop = populations_[project.post_idx];
+            auto pre_pop = populations_.at(project.pre_idx);
+            auto post_pop = populations_.at(project.post_idx);
             auto pro_pars = project.pars;
 
             // Distribution to draw the weights
@@ -254,8 +258,8 @@ public:
             EXPECTS(project.post_idx < populations_.size());
 
             // Shorthand for the pre and post populations
-            auto pre_pop = populations_[project.pre_idx];
-            auto post_pop = populations_[project.post_idx];
+            auto pre_pop = populations_.at(project.pre_idx);
+            auto post_pop = populations_.at(project.post_idx);
             auto pro_pars = project.pars;
 
             // Distribution to draw the weights
@@ -392,7 +396,7 @@ private:
         {}
     };
 
-    std::vector<population_indexed> populations_;
+    std::map<unsigned, population_indexed> populations_;
     std::vector<projection> connectome_;
 
     // Number of cells in this connection class
