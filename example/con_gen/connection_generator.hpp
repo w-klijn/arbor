@@ -29,17 +29,29 @@ namespace arb_con_gen {
         bool periodic;
 
         cell_size_type n_cells;
+        cell_kind kind;
 
         // TODO: enum topology_type ( grid, pure random, minimal distance)
 
-        population(cell_size_type x_dim, cell_size_type y_dim, bool per) :
-            x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim)
+        population(cell_size_type x_dim, cell_size_type y_dim, bool per, cell_kind kind) :
+            x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
         {
 
             // Sanity check
             EXPECTS(x_dim > 0);
             EXPECTS(y_dim > 0);
         }
+
+        // TODOW: Use a temperary default for the cell kind
+        population(cell_size_type x_dim, cell_size_type y_dim, bool per) :
+            x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(arb::cell_kind::cable1d_neuron)
+        {
+
+            // Sanity check
+            EXPECTS(x_dim > 0);
+            EXPECTS(y_dim > 0);
+        }
+
     };
 
     // Describes a projection between the neurons between two populations

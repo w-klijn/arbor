@@ -222,4 +222,27 @@ namespace con_gen_util {
         return connectome;
     }
 
+    // Small helper function that converts a string to cell_kind
+    arb::cell_kind cell_kind_from_string(std::string str)
+    {
+        if (str == std::string("cable1d_neuron")) {
+            return arb::cell_kind::cable1d_neuron;
+        }
+        else if (str == std::string("regular_spike_source")) {
+            return arb::cell_kind::regular_spike_source;
+        }
+        else if (str == std::string("data_spike_source")) {
+            return arb::cell_kind::data_spike_source;
+        }
+        else if (str == std::string("inhomogeneous_poisson_spike_source")) {
+            return arb::cell_kind::inhomogeneous_poisson_spike_source;
+        }
+        else
+        {
+            throw con_gen_error("Unkown cell kind representation encountered: " + str);
+        }
+
+
+    }
+
 }

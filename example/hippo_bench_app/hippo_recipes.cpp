@@ -8,6 +8,7 @@
 #include <event_generator.hpp>
 #include <rss_cell.hpp>
 #include <morphology.hpp>
+#include <common_types.hpp>
 #include <util/debug.hpp>
 
 
