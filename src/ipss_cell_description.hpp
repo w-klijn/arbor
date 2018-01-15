@@ -1,6 +1,8 @@
 #pragma once
 
 #include <common_types.hpp>
+#include <json/json.hpp>
+#include <util/debug.hpp>
 
 namespace arb {
 
@@ -29,6 +31,22 @@ struct ipss_cell_description {
         rates_per_time(std::move(rates_per_time)),
         interpolate(interpolate)
     {}
+
+    // Collect all the cell parameters from its json description
+    ipss_cell_description(nlohmann::json& cell_options) {
+        start_time = cell_options["start_time"];
+        stop_time = cell_options["stop_time"];
+        sample_delta = cell_options["sample_delta"];
+        interpolate = cell_options["interpolate"];
+
+        auto times = cell_options["times"];
+        auto rates = cell_options["rates"];
+
+        EXPECTS(times.size() == rates.size());
+        for (unsigned idx = 0; idx < times.size(); ++idx) {
+            rates_per_time.push_back({ times[0], rates[0] });
+        }
+    }
 
 };
 
