@@ -82,15 +82,13 @@ cell make_basic_cell(
 
 class hippo_recipe: public recipe {
 public:
-    hippo_recipe(cell_gid_type ncell, basic_recipe_param param, probe_distribution pdist):
-        ncell_(ncell), param_(std::move(param)), pdist_(std::move(pdist)),
+    hippo_recipe(basic_recipe_param param, probe_distribution pdist):
+        // TODO fix ncless
+        param_(std::move(param)), pdist_(std::move(pdist)),
         con_gen(con_gen_util::default_populations(), con_gen_util::default_connectome())
     {
         // Cells are not allowed to connect to themselves; hence there must be least two cells
         // to build a connected network.
-        if (ncell<2) {
-            throw std::runtime_error("A randomly connected network must have at least 2 cells.");
-        }
 
         EXPECTS(param_.morphologies.size()>0);
         delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
@@ -193,8 +191,6 @@ public:
 
 protected:
 
-    cell_gid_type ncell_;
-
     basic_recipe_param param_;
 
     probe_distribution pdist_;
@@ -225,11 +221,10 @@ protected:
 
 
 std::unique_ptr<recipe> make_hippo_recipe(
-        cell_gid_type ncell,
         basic_recipe_param param,
         probe_distribution pdist)
 {
-    return std::unique_ptr<recipe>(new hippo_recipe(ncell, param, pdist));
+    return std::unique_ptr<recipe>(new hippo_recipe(param, pdist));
 }
 
 

@@ -225,7 +225,7 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
         p.input_spike_path = options.input_spike_path;
     }
 
-    return make_hippo_recipe(options.cells, p, pdist);
+    return make_hippo_recipe(p, pdist);
 }
 
 sample_trace make_trace(const probe_info& probe) {

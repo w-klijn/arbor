@@ -47,7 +47,6 @@ struct basic_recipe_param {
 
 
 std::unique_ptr<recipe> make_hippo_recipe(
-        cell_gid_type ncell,
         basic_recipe_param param,
         probe_distribution pdist = probe_distribution{});
 
