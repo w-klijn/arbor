@@ -18,7 +18,6 @@
 
 namespace arb_con_gen {
 
-using namespace arb;
 
 // Describes a 2d surface of neurons located on grid locations
 // -x_dim   number of neurons on the x-side
@@ -26,16 +25,16 @@ using namespace arb;
 // -periodic Do the border loop back to the other side (torus topology)
 struct population {
     std::string name;
-    cell_size_type x_dim;
-    cell_size_type y_dim;
+    arb::cell_size_type x_dim;
+    arb::cell_size_type y_dim;
     bool periodic;
 
-    cell_size_type n_cells;
-    cell_kind kind;
+    arb::cell_size_type n_cells;
+    arb::cell_kind kind;
 
     // TODO: enum topology_type ( grid, pure random, minimal distance)
 
-    population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per, cell_kind kind) :
+    population(std::string name, arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool per, arb::cell_kind kind) :
         name(name), x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(kind)
     {
 
@@ -45,7 +44,7 @@ struct population {
     }
 
     // TODOW: Use a temperary default for the cell kind
-    population(std::string name, cell_size_type x_dim, cell_size_type y_dim, bool per) :
+    population(std::string name, arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool per) :
         name(name),x_dim(x_dim), y_dim(y_dim), periodic(per), n_cells(x_dim *y_dim), kind(arb::cell_kind::cable1d_neuron)
     {
 
@@ -69,7 +68,7 @@ struct population {
 // - delay_per_sd   Delay increase by sd distance between neurons
 struct projection_pars {
     float sd = 0.02;
-    cell_size_type count;
+    arb::cell_size_type count;
 
     // parameters for the synapses on this projection
     float weight_mean;
@@ -78,7 +77,7 @@ struct projection_pars {
     float delay_min;        // Minimal delay
     float delay_per_sd;    // per
 
-    projection_pars(float var, cell_size_type count, float weight_mean,
+    projection_pars(float var, arb::cell_size_type count, float weight_mean,
         float weight_std, float delay_min, float delay_per_std) :
         sd(var), count(count),
         weight_mean(weight_mean), weight_sd(weight_std),
@@ -114,10 +113,10 @@ struct projection {
 // A set of pre-synaptic cell gid,
 // weight and delay
 struct synaps_pars {
-    cell_gid_type gid;
+    arb::cell_gid_type gid;
     float weight;
     float delay;
-    synaps_pars(cell_gid_type gid, float weight, float delay) :
+    synaps_pars(arb::cell_gid_type gid, float weight, float delay) :
         gid(gid), weight(weight), delay(delay)
     {}
 };
@@ -133,7 +132,7 @@ public:
         std::vector<projection> connectome) :
         connectome_(std::move(connectome))
     {
-        cell_gid_type gid_idx = 0;
+        arb::cell_gid_type gid_idx = 0;
 
         // Create the local populations with start index set
         for (auto pop : populations) {
@@ -151,11 +150,11 @@ public:
 
     // Get the total count of cells on this connection generator
     // TODO: Refactor to connection generator and neuron generator
-    cell_size_type num_cells() const {
+    arb::cell_size_type num_cells() const {
         return n_cells_;
     }
 
-    cell_kind get_cell_kind(cell_gid_type gid) const {
+    arb::cell_kind get_cell_kind(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
 
         for (unsigned idx = 0; idx < population_ranges.size(); ++idx) {
@@ -166,11 +165,11 @@ public:
     }
 
     // Returns the number of synapses on this cell
-    cell_size_type num_synapses_on(cell_gid_type gid) const {
+    arb::cell_size_type num_synapses_on(arb::cell_gid_type gid) const {
         std::mt19937 gen;
         gen.seed(gid);
 
-        cell_size_type synapse_count;
+        arb::cell_size_type synapse_count;
 
         // TODO: THis is copy paste from synapses_on
         for (auto project : connectome_) {
@@ -230,7 +229,7 @@ public:
     }
 
     // Returns a vector of all synaptic parameters sets for this gid
-    std::vector<synaps_pars> synapses_on(cell_gid_type gid) const {
+    std::vector<synaps_pars> synapses_on(arb::cell_gid_type gid) const {
         std::mt19937 gen;
         gen.seed(gid);
 
@@ -292,8 +291,8 @@ public:
 
                 // If we have Grid type topology
                 // convert the normalized locations to gid
-                cell_gid_type gid_pre = cell_gid_type(pre_location.y * pre_pop.y_dim) * pre_pop.x_dim +
-                    cell_gid_type(pre_location.x * pre_pop.x_dim);
+                arb::cell_gid_type gid_pre = arb::cell_gid_type(pre_location.y * pre_pop.y_dim) * pre_pop.x_dim +
+                    arb::cell_gid_type(pre_location.x * pre_pop.x_dim);
                 // absolute gid
                 gid_pre += pre_pop.start_index;
 
@@ -327,7 +326,7 @@ private:
     // Returns a vector of points from a 2d normal distribution around the
     // supplied 2d location.
     std::vector<point> get_random_locations(std::mt19937 gen,
-        point target_location, cell_size_type count,
+        point target_location, arb::cell_size_type count,
         float sd_x, float sd_y, bool periodic) const
     {
         // Generate the distribution for these locations
@@ -339,7 +338,7 @@ private:
         // we have the amount of connections we need
         std::vector<point> connections;
 
-        for (cell_gid_type idx = 0; idx < count; ++idx) {
+        for (arb::cell_gid_type idx = 0; idx < count; ++idx) {
 
             // draw the locations
             float x_source = distr_x(gen);
@@ -372,10 +371,10 @@ private:
 
 
     struct population_indexed : public population {
-        cell_gid_type start_index;
+        arb::cell_gid_type start_index;
 
-        population_indexed(cell_size_type x_dim, cell_size_type y_dim, bool periodic,
-            cell_gid_type start_index) :
+        population_indexed(arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool periodic,
+            arb::cell_gid_type start_index) :
             population("", x_dim, y_dim, periodic), start_index(start_index)
         {}
     };
@@ -384,10 +383,10 @@ private:
     std::vector<projection> connectome_;
 
     // Number of cells in this connection class
-    cell_size_type n_cells_;
+    arb::cell_size_type n_cells_;
 
     // TODO convert to span
-    std::vector<std::pair<cell_gid_type, cell_gid_type>> population_ranges;
+    std::vector<std::pair<arb::cell_gid_type, arb::cell_gid_type>> population_ranges;
 
 };
 
