@@ -181,7 +181,7 @@ public:
         std::mt19937 gen;
         gen.seed(gid);
 
-        arb::cell_size_type synapse_count;
+        arb::cell_size_type synapse_count = 0;
 
         // TODO: THis is copy paste from synapses_on
         for (auto project : connectome_) {
@@ -199,7 +199,7 @@ public:
             std::normal_distribution<float> weight_distr(pro_pars.weight_mean, pro_pars.weight_sd);
 
             // Used to assure correct weight sign
-            float weight_sign = arb::math::signum(pro_pars.weight_mean);
+            //float weight_sign = arb::math::signum(pro_pars.weight_mean);
 
             // Check if this gid receives connections via this projection
             // TODO: Replace with the fancy in range function we have somewhere in the utils
@@ -237,6 +237,7 @@ public:
 
             synapse_count += pre_locations.size();
         }
+
         return synapse_count;
     }
 
