@@ -95,36 +95,57 @@ namespace con_gen_util {
     // with types:
     // unsigned, unsigned, unsigned, float, float, float, float, float
     std::vector<arb_con_gen::projection> parse_projections_from_path(std::string path) {
-        std::ifstream infile(path);
 
-        unsigned pre_population_id;
-        unsigned post_population_id;
-        unsigned count;
-        float    sd;
-        float    mean_weight;
-        float    sd_weight;
-        float    min_delay;
-        float    delay_per_sd;
-        char comma;
+        //unsigned pre_population_id;
+        //unsigned post_population_id;
+        //unsigned count;
+        //float    sd;
+        //float    mean_weight;
+        //float    sd_weight;
+        //float    min_delay;
+        //float    delay_per_sd;
+        //char comma;
 
         std::vector<arb_con_gen::projection> projection;
 
-        if (infile) {
-            std::string line;
-            while (std::getline(infile, line)) {
-                std::istringstream iss(line);
+        std::ifstream fid(path);
+        if (fid) {
+            try {
+                nlohmann::json fopts;
+                fid >> fopts;
 
-                if (!(iss >> pre_population_id >> comma >> post_population_id >> comma >>
-                count >> comma >> sd >> comma >> mean_weight >> comma >>
-                sd_weight >> comma >> min_delay >> comma >> delay_per_sd)) {
-                    break;
+                // Loop over the 'json' population entries
+                for (nlohmann::json::iterator it = fopts.begin(); it != fopts.end(); ++it) {
+                    try {
+                        std::string name = it.key();
+
+                        size_t population_pre = it.value()["population_pre"];
+                        size_t population_post = it.value()["population_post"];;
+                        unsigned count = it.value()["count"];
+                        float    std_2d_kernel = it.value()["std_2d_kernel"];
+                        float    weight_mean = it.value()["weight_mean"];
+                        float    weight_std = it.value()["weight_std"];
+                        float    delay_min = it.value()["delay_min"];
+                        float    delay_per_std = it.value()["delay_per_std"];
+
+                        projection.push_back({ population_pre , population_post,
+                        {count, std_2d_kernel, weight_mean, weight_std, delay_min, delay_per_std } });
+
+                    }
+                    catch (std::exception& e) {
+                        std::cerr << "Could not parse:\n" << it.value() << "\n";
+                        throw con_gen_error(
+                            "Could not parse entry in: " + path + ": " + e.what());
+                    }
                 }
-                projection.push_back({ pre_population_id,post_population_id,{
-                    sd, count, mean_weight, sd_weight,min_delay, delay_per_sd}});
+            }
+            catch (std::exception& e) {
+                throw con_gen_error(
+                    "unable to parse parameters in " + path + ": " + e.what());
             }
         }
         else {
-            throw con_gen_error("Could not open supplied projection config");
+            throw con_gen_error("Unable to open file" + path);
         }
 
         return projection;
@@ -210,8 +231,8 @@ namespace con_gen_util {
     // 1 > 0. count 1000, ds 0.1 | weight -mean 2.0 -sd 1.0 | delay 1.0 -sd 1.0
     std::vector<arb_con_gen::projection> default_connectome() {
         std::vector<arb_con_gen::projection>  connectome;
-        connectome.push_back({ 0,1,{ 0.02, 8,  2.0, 1.0, 1.0, 1.0 } });
-        connectome.push_back({ 1,0,{ 0.05, 10, 2.0, 1.0, 1.0, 1.0 } });
+        connectome.push_back({ 0,1,{  8, 0.02, 2.0, 1.0, 1.0, 1.0 } });
+        connectome.push_back({ 1,0,{  10,0.05, 2.0, 1.0, 1.0, 1.0 } });
 
         return connectome;
     }

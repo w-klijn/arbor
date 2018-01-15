@@ -60,19 +60,19 @@ struct population {
 // - delay_min      Minimal delay of the created synapse
 // - delay_per_sd   Delay increase by sd distance between neurons
 struct projection_pars {
-    float sd = 0.02;
-    arb::cell_size_type count;
+    arb::cell_size_type count=0;
+    float sd = 0.0;
 
     // parameters for the synapses on this projection
-    float weight_mean;
-    float weight_sd;
+    float weight_mean=0;
+    float weight_sd=0;
 
-    float delay_min;        // Minimal delay
-    float delay_per_sd;    // per
+    float delay_min=0;        // Minimal delay
+    float delay_per_sd=0;    // per
 
-    projection_pars(float var, arb::cell_size_type count, float weight_mean,
+    projection_pars( arb::cell_size_type count, float sd, float weight_mean,
         float weight_std, float delay_min, float delay_per_std) :
-        sd(var), count(count),
+        count(count), sd(sd),
         weight_mean(weight_mean), weight_sd(weight_std),
         delay_min(delay_min), delay_per_sd(delay_per_std)
     {
