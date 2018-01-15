@@ -95,8 +95,18 @@ public:
         delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
                             - param_.min_connection_delay_ms};
 
-        con_gen_ = arb_con_gen::connection_generator(
-            con_gen_util::default_populations(), con_gen_util::default_connectome());
+        if (param.json_connectome && param.json_populations) {
+            con_gen_ = arb_con_gen::connection_generator(
+                con_gen_util::parse_populations_from_path(param.json_populations.value()),
+
+                con_gen_util::default_connectome());
+        }
+        else {
+            con_gen_ = arb_con_gen::connection_generator(
+                con_gen_util::default_populations(),
+                con_gen_util::default_connectome());
+        }
+
     }
 
     cell_size_type num_cells() const override {
@@ -118,8 +128,8 @@ public:
 
             return util::unique_any(std::move(cell));
         }
-        if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
-
+        else // (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
+        {
             nlohmann::json const otps = con_gen_.get_cell_opts(i);
             ipss_cell_description cell(otps);
             return util::unique_any(std::move(cell));
