@@ -25,12 +25,12 @@ struct basic_recipe_param {
     // unbranched section of the morphology, A value of zero indicates that
     // the number of compartments should equal the number of piecewise
     // linear segments in the morphology description of that branch.
-    unsigned compartments_per_segment = 1;
+    //unsigned compartments_per_segment = 1;
 
     // Total number of synapses on each cell.
-    unsigned num_synapses = 1;
+    //unsigned num_synapses = 1;
 
-    std::string synapse_type = "expsyn";
+    //std::string synapse_type = "expsyn";
     float min_connection_delay_ms = 20.0;
     float mean_connection_delay_ms = 20.75;
     float syn_weight_per_cell = 0.3;

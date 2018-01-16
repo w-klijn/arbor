@@ -37,6 +37,9 @@ cell make_basic_cell(
 {
     arb::cell cell = make_cell(morph, true);
 
+    // TODOW: It all fails of the json is not completely specified.
+    // It would be nice to have some 'standard' way to handle this
+
     unsigned compartments_per_segment = opts["compartments_per_segment"];
     std::string syn_type(opts["synapse_type"].get<std::string>());
 
@@ -52,12 +55,6 @@ cell make_basic_cell(
             segment->rL = opts["dendrite_rL"];
         }
     }
-
-    //segment->add_mechanism(opts["dendrite_mechanism"].get<std::string>());
-    //segment->rL = opts["dendrite_rL"];
-
-    //cell.soma()->add_mechanism(opts["soma_mechanism"].get<std::string>());
-
 
     cell.soma()->add_mechanism(opts["soma_mechanism"].get<std::string>());
     cell.add_detector({0,0}, 20);
@@ -216,7 +213,8 @@ public:
     }
 
     cell_size_type num_targets(cell_gid_type i) const override {
-        return param_.num_synapses;
+        nlohmann::json const& opts = con_gen_.get_cell_opts(i);
+        return opts["synapses_per_cell"];
     }
 
     cell_size_type num_probes(cell_gid_type i) const override {

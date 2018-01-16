@@ -86,9 +86,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     if (cells) {
         options.cells = cells.value();
     }
-    if (synapses_per_cell) {
-        options.synapses_per_cell = synapses_per_cell.value();
-    }
     if (tfinal) {
         options.tfinal = tfinal.value();
     }
@@ -144,7 +141,6 @@ void parse_json_options(std::string &file_name, cl_options &options) {
                 else if (it.key() == "single_file_per_rank") { options.single_file_per_rank = it.value(); }
                 else if (it.key() == "spike_file_input") { options.spike_file_input = it.value(); }
                 else if (it.key() == "spike_file_output") { options.spike_file_output = it.value(); }
-                else if (it.key() == "synapses_per_cell") { options.synapses_per_cell = it.value(); }
                 else if (it.key() == "tfinal") { options.tfinal = it.value(); }
                 else if (it.key() == "trace_format") { std::string temp = it.value(); options.trace_format = temp; }
                 else if (it.key() == "trace_max_gid") { unsigned temp = it.value(); options.trace_max_gid = temp; }
@@ -198,7 +194,6 @@ void write_json_options(std::string &file_name, cl_options &options) {
             fopts["single_file_per_rank"] = options.single_file_per_rank;
             fopts["spike_file_input"] = options.spike_file_input;
             fopts["spike_file_output"] = options.spike_file_output;
-            fopts["synapses_per_cell"] = options.synapses_per_cell;
             fopts["tfinal"] = options.tfinal;
             fopts["trace_prefix"] = options.trace_prefix;
             fopts["trace_format"] = options.trace_format;
@@ -224,7 +219,6 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
     // These are not sorted alphabet, we need to think about how to represent this
     o << "simulation options: \n";
     o << "  cells                   : " << (options.cells == defaults.cells ? " " : " * ")                                       << options.cells << "\n";
-    o << "  synapses_per_cell       : " << (options.synapses_per_cell == defaults.synapses_per_cell ? " " : " * ")               << options.synapses_per_cell << "\n";
     if (options.morphologies) {
         o << "  morphologies            : " << (options.morphologies.value() == defaults.morphologies.value() ? " " : " * ")     << options.morphologies.value() << "\n";
     }

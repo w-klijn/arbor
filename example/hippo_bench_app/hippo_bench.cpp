@@ -215,9 +215,6 @@ std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const hipp
     p.morphology_round_robin = options.morph_rr;
 
 
-    // TODO: Put all recipe parameters in the recipes file
-    p.num_synapses = options.synapses_per_cell;
-
     // Parameters for spike input from file
     if (options.spike_file_input) {
         p.input_spike_path = options.input_spike_path;

@@ -19,7 +19,6 @@ namespace hippo {
 struct cl_options {
         // Cell parameters:
     uint32_t cells = 1000;
-    uint32_t synapses_per_cell = 500;
     arb::util::optional<std::string> morphologies;
     bool morph_rr = false; // False => pick morphologies randomly, true => pick morphologies round-robin.
 
