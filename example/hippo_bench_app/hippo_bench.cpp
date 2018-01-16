@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
 
 void banner(hw::node_info nd) {
     std::cout << "==========================================\n";
-    std::cout << "  Arbor miniapp\n";
+    std::cout << "  hippocampus benchmark model app\n";
     std::cout << "  - distributed : " << global_policy::size()
         << " (" << std::to_string(global_policy::kind()) << ")\n";
     std::cout << "  - threads     : " << nd.num_cpu_cores
@@ -204,7 +204,7 @@ void banner(hw::node_info nd) {
 }
 
 std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const hippo::probe_distribution& pdist) {
-    hippo::basic_recipe_param p;
+    hippo::hippo_recipe_param p;
 
     if (options.morphologies) {
         std::cout << "loading morphologies...\n";

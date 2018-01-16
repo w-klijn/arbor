@@ -20,21 +20,9 @@ struct probe_distribution {
     bool membrane_current = true;
 };
 
-struct basic_recipe_param {
-    // `num_compartments` is the number of compartments to place in each
-    // unbranched section of the morphology, A value of zero indicates that
-    // the number of compartments should equal the number of piecewise
-    // linear segments in the morphology description of that branch.
-    //unsigned compartments_per_segment = 1;
-
-    // Total number of synapses on each cell.
-    //unsigned num_synapses = 1;
+struct hippo_recipe_param {
 
     //std::string synapse_type = "expsyn";
-    float min_connection_delay_ms = 20.0;
-    float mean_connection_delay_ms = 20.75;
-    float syn_weight_per_cell = 0.3;
-
     arb::morphology_pool morphologies = arb::default_morphology_pool;
 
     // If true, iterate through morphologies rather than select randomly.
@@ -50,7 +38,7 @@ struct basic_recipe_param {
 
 
 std::unique_ptr<arb::recipe> make_hippo_recipe(
-        basic_recipe_param param,
+        hippo_recipe_param param,
         probe_distribution pdist = probe_distribution{});
 
 } // namespace arb

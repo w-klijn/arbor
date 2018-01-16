@@ -90,7 +90,7 @@ cell make_basic_cell(
 
 class hippo_recipe: public recipe {
 public:
-    hippo_recipe(hippo::basic_recipe_param param, hippo::probe_distribution pdist):
+    hippo_recipe(hippo::hippo_recipe_param param, hippo::probe_distribution pdist):
         // TODO fix ncless
         param_(std::move(param)), pdist_(std::move(pdist))
     {
@@ -98,8 +98,6 @@ public:
         // to build a connected network.
 
         EXPECTS(param_.morphologies.size()>0);
-        delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
-                            - param_.min_connection_delay_ms};
 
         if (param_.json_connectome && param_.json_populations) {
             con_gen_ = arb_con_gen::connection_generator(
@@ -235,13 +233,11 @@ public:
 
 protected:
 
-    hippo::basic_recipe_param param_;
+    hippo::hippo_recipe_param param_;
 
     hippo::probe_distribution pdist_;
 
     using exp_param = std::exponential_distribution<float>::param_type;
-
-    exp_param delay_distribution_param_;
 
     arb_con_gen::connection_generator con_gen_;
 
@@ -265,7 +261,7 @@ protected:
 
 
 std::unique_ptr<arb::recipe> make_hippo_recipe(
-    hippo::basic_recipe_param param,
+    hippo::hippo_recipe_param param,
     hippo::probe_distribution pdist) {
     return std::unique_ptr<recipe>(new hippo_recipe(param, pdist));
 }
