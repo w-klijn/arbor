@@ -48,12 +48,18 @@ cell make_basic_cell(
         }
 
         if (segment->is_dendrite()) {
-            segment->add_mechanism("pas");
-            segment->rL = 100;
+            segment->add_mechanism(opts["dendrite_mechanism"].get<std::string>());
+            segment->rL = opts["dendrite_rL"];
         }
     }
 
-    cell.soma()->add_mechanism("hh");
+    //segment->add_mechanism(opts["dendrite_mechanism"].get<std::string>());
+    //segment->rL = opts["dendrite_rL"];
+
+    //cell.soma()->add_mechanism(opts["soma_mechanism"].get<std::string>());
+
+
+    cell.soma()->add_mechanism(opts["soma_mechanism"].get<std::string>());
     cell.add_detector({0,0}, 20);
 
     auto distribution = std::uniform_real_distribution<float>(0.f, 1.0f);
