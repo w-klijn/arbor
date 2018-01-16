@@ -35,7 +35,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     // The set of varuiables that might be set from the commandline
     optional<uint32_t> cells;
     optional<uint32_t> synapses_per_cell;
-    optional<uint32_t> compartments_per_segment;
     optional<arb::time_type> tfinal;
     optional<std::string> json_input;
     optional<std::string> json_output;
@@ -49,7 +48,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
         while (*arg) {
             if (auto o = arb::to::parse_opt<uint32_t>(arg, 'n', "cells"))                         { cells = *o; }
             else if (auto o = arb::to::parse_opt<uint32_t>(arg, 's', "synapses_per_cell"))        { synapses_per_cell = *o; }
-            else if (auto o = arb::to::parse_opt<uint32_t>(arg, 'c', "compartments_per_segment")) { compartments_per_segment = *o; }
             else if (auto o = arb::to::parse_opt<arb::time_type>(arg, 't', "tfinal"))             { tfinal = *o; }
             else if (auto o = arb::to::parse_opt<bool>(arg, 'v', "verbose"))                      { verbose = *o; }
             else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_output"))             { json_output = *o; }
@@ -91,9 +89,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
     if (synapses_per_cell) {
         options.synapses_per_cell = synapses_per_cell.value();
     }
-    if (compartments_per_segment) {
-        options.compartments_per_segment = compartments_per_segment.value();
-    }
     if (tfinal) {
         options.tfinal = tfinal.value();
     }
@@ -134,7 +129,6 @@ void parse_json_options(std::string &file_name, cl_options &options) {
                 if (it.key() == "bin_dt") { options.bin_dt = it.value(); }
                 else if (it.key() == "bin_regular") { options.bin_regular = it.value(); }
                 else if (it.key() == "cells") { options.cells = it.value(); }
-                else if (it.key() == "compartments_per_segment") { options.compartments_per_segment = it.value(); }
                 else if (it.key() == "dry_run_ranks") { options.dry_run_ranks = it.value(); }
                 else if (it.key() == "dt") { options.dt = it.value(); }
                 else if (it.key() == "file_extension") { std::string temp = it.value(); options.file_extension = temp; }
@@ -150,7 +144,6 @@ void parse_json_options(std::string &file_name, cl_options &options) {
                 else if (it.key() == "single_file_per_rank") { options.single_file_per_rank = it.value(); }
                 else if (it.key() == "spike_file_input") { options.spike_file_input = it.value(); }
                 else if (it.key() == "spike_file_output") { options.spike_file_output = it.value(); }
-                else if (it.key() == "syn_type") { std::string temp = it.value(); options.syn_type = temp; }
                 else if (it.key() == "synapses_per_cell") { options.synapses_per_cell = it.value(); }
                 else if (it.key() == "tfinal") { options.tfinal = it.value(); }
                 else if (it.key() == "trace_format") { std::string temp = it.value(); options.trace_format = temp; }
@@ -193,7 +186,6 @@ void write_json_options(std::string &file_name, cl_options &options) {
             fopts["cells"] = options.cells;
             fopts["dry_run_ranks"] = options.dry_run_ranks;
             fopts["dt"] = options.dt;
-            fopts["compartments_per_segment"] = options.compartments_per_segment;
             fopts["file_extension"] = options.file_extension;
             fopts["file_name"] = options.file_name;
             fopts["input_spike_path"] = options.input_spike_path;
@@ -206,7 +198,6 @@ void write_json_options(std::string &file_name, cl_options &options) {
             fopts["single_file_per_rank"] = options.single_file_per_rank;
             fopts["spike_file_input"] = options.spike_file_input;
             fopts["spike_file_output"] = options.spike_file_output;
-            fopts["syn_type"] = options.syn_type;
             fopts["synapses_per_cell"] = options.synapses_per_cell;
             fopts["tfinal"] = options.tfinal;
             fopts["trace_prefix"] = options.trace_prefix;
@@ -234,8 +225,6 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
     o << "simulation options: \n";
     o << "  cells                   : " << (options.cells == defaults.cells ? " " : " * ")                                       << options.cells << "\n";
     o << "  synapses_per_cell       : " << (options.synapses_per_cell == defaults.synapses_per_cell ? " " : " * ")               << options.synapses_per_cell << "\n";
-    o << "  compartments_per_segment: " << (options.compartments_per_segment == defaults.compartments_per_segment ? " " : " * ") << options.compartments_per_segment << "\n";
-    o << "  syn_type                : " << (options.syn_type == defaults.syn_type ? " " : " * ")                                 << options.syn_type << "\n";
     if (options.morphologies) {
         o << "  morphologies            : " << (options.morphologies.value() == defaults.morphologies.value() ? " " : " * ")     << options.morphologies.value() << "\n";
     }

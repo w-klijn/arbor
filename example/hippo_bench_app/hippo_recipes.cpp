@@ -114,7 +114,6 @@ public:
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
-
         auto kind = con_gen_.get_cell_kind(i);
 
         if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
@@ -139,17 +138,22 @@ public:
 
             return util::unique_any(std::move(cell));
         }
-        else { //(kind == arb::cell_kind::cable1d_neuron) {
-                auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
-                const auto& morph = get_morphology(i);
-                unsigned cell_segments = morph.components();
-                auto cell = make_basic_cell(morph, param_.num_compartments, con_gen_.num_synapses_on(i),
-                    param_.synapse_type, gen);
 
-                EXPECTS(cell.num_segments() == cell_segments);
 
-                return util::unique_any(std::move(cell));
-            }
+        //else (kind == arb::cell_kind::cable1d_neuron
+        auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
+        const auto& morph = get_morphology(i);
+        unsigned cell_segments = morph.components();
+
+        nlohmann::json const opts = con_gen_.get_cell_opts(i);
+
+        auto cell = make_basic_cell(morph, opts["compartments_per_segment"],
+            con_gen_.num_synapses_on(i), opts["synapse_type"], gen);
+
+        EXPECTS(cell.num_segments() == cell_segments);
+
+        return util::unique_any(std::move(cell));
+
     }
 
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
