@@ -125,11 +125,12 @@ public:
                 param_.synapse_type, gen);
 
             EXPECTS(cell.num_segments() == cell_segments);
+
             return util::unique_any(std::move(cell));
         }
-        else // (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
-        {
+        else if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
             nlohmann::json const otps = con_gen_.get_cell_opts(i);
+
             ipss_cell_description cell(otps);
             return util::unique_any(std::move(cell));
         }
@@ -182,7 +183,7 @@ public:
 
     cell_kind get_cell_kind(cell_gid_type i) const override {
 
-        return cell_kind::cable1d_neuron;
+        return con_gen_.get_cell_kind(i);
     }
 
     cell_size_type num_sources(cell_gid_type i) const override {

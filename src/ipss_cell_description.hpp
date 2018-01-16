@@ -44,7 +44,7 @@ struct ipss_cell_description {
 
         EXPECTS(times.size() == rates.size());
         for (unsigned idx = 0; idx < times.size(); ++idx) {
-            rates_per_time.push_back({ times[0], rates[0] });
+            rates_per_time.push_back({ times[idx], rates[idx] });
         }
     }
 
