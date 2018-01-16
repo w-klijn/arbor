@@ -31,15 +31,17 @@ namespace hippo {
 template <typename RNG>
 cell make_basic_cell(
     const morphology& morph,
-    unsigned compartments_per_segment,
     unsigned num_synapses,
     const std::string& syn_type,
-    RNG& rng)
+    RNG& rng,
+    nlohmann::json const& opts)
 {
     arb::cell cell = make_cell(morph, true);
 
+    unsigned compartments_per_segment = opts["compartments_per_segment"];
+
     for (auto& segment: cell.segments()) {
-        if (compartments_per_segment!=0) {
+        if (compartments_per_segment !=0) {
             if (cable_segment* cable = segment->as_cable()) {
                 cable->set_compartments(compartments_per_segment);
             }
@@ -115,15 +117,16 @@ public:
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
         auto kind = con_gen_.get_cell_kind(i);
+        nlohmann::json const& opts = con_gen_.get_cell_opts(i);
 
         if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
-            nlohmann::json const opts = con_gen_.get_cell_opts(i);
+
             ipss_cell_description cell(opts);
 
             return util::unique_any(std::move(cell));
         }
         else if (kind == arb::cell_kind::data_spike_source) {
-            nlohmann::json const opts = con_gen_.get_cell_opts(i);
+
             std::vector<time_type> spike_times;
             for (auto & entry : opts["spike_times"]) {
                 spike_times.push_back({ entry });
@@ -133,7 +136,7 @@ public:
             return util::unique_any(std::move(cell));
         }
         else if (kind == arb::cell_kind::regular_spike_source) {
-            nlohmann::json const opts = con_gen_.get_cell_opts(i);
+
             rss_cell cell(opts["start_time"], opts["period"], opts["stop_time"]);
 
             return util::unique_any(std::move(cell));
@@ -145,10 +148,8 @@ public:
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
 
-        nlohmann::json const opts = con_gen_.get_cell_opts(i);
-
-        auto cell = make_basic_cell(morph, opts["compartments_per_segment"],
-            con_gen_.num_synapses_on(i), opts["synapse_type"], gen);
+        auto cell = make_basic_cell(morph,
+            con_gen_.num_synapses_on(i), opts["synapse_type"], gen, opts);
 
         EXPECTS(cell.num_segments() == cell_segments);
 
