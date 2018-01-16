@@ -117,24 +117,39 @@ public:
 
         auto kind = con_gen_.get_cell_kind(i);
 
-        if (kind == arb::cell_kind::cable1d_neuron) {
-            auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
-            const auto& morph = get_morphology(i);
-            unsigned cell_segments = morph.components();
-            auto cell = make_basic_cell(morph, param_.num_compartments, con_gen_.num_synapses_on(i),
-                param_.synapse_type, gen);
-
-            EXPECTS(cell.num_segments() == cell_segments);
+        if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
+            nlohmann::json const opts = con_gen_.get_cell_opts(i);
+            ipss_cell_description cell(opts);
 
             return util::unique_any(std::move(cell));
         }
-        else if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source) {
-            nlohmann::json const otps = con_gen_.get_cell_opts(i);
+        else if (kind == arb::cell_kind::data_spike_source) {
+            nlohmann::json const opts = con_gen_.get_cell_opts(i);
+            std::vector<time_type> spike_times;
+            for (auto & entry : opts["spike_times"]) {
+                spike_times.push_back({ entry });
+            }
+            dss_cell_description cell(spike_times);
 
-            ipss_cell_description cell(otps);
             return util::unique_any(std::move(cell));
         }
+        else if (kind == arb::cell_kind::regular_spike_source) {
+            nlohmann::json const opts = con_gen_.get_cell_opts(i);
+            rss_cell cell(opts["start_time"], opts["period"], opts["stop_time"]);
 
+            return util::unique_any(std::move(cell));
+        }
+        else { //(kind == arb::cell_kind::cable1d_neuron) {
+                auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
+                const auto& morph = get_morphology(i);
+                unsigned cell_segments = morph.components();
+                auto cell = make_basic_cell(morph, param_.num_compartments, con_gen_.num_synapses_on(i),
+                    param_.synapse_type, gen);
+
+                EXPECTS(cell.num_segments() == cell_segments);
+
+                return util::unique_any(std::move(cell));
+            }
     }
 
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
