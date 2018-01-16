@@ -32,13 +32,13 @@ template <typename RNG>
 cell make_basic_cell(
     const morphology& morph,
     unsigned num_synapses,
-    const std::string& syn_type,
     RNG& rng,
     nlohmann::json const& opts)
 {
     arb::cell cell = make_cell(morph, true);
 
     unsigned compartments_per_segment = opts["compartments_per_segment"];
+    std::string syn_type(opts["synapse_type"].get<std::string>());
 
     for (auto& segment: cell.segments()) {
         if (compartments_per_segment !=0) {
@@ -148,8 +148,7 @@ public:
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
 
-        auto cell = make_basic_cell(morph,
-            con_gen_.num_synapses_on(i), opts["synapse_type"], gen, opts);
+        auto cell = make_basic_cell(morph, con_gen_.num_synapses_on(i), gen, opts);
 
         EXPECTS(cell.num_segments() == cell_segments);
 
