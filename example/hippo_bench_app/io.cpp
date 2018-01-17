@@ -99,9 +99,10 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
         options.json_populations = json_populations.value();
     }
 
+
     if (json_output && allow_write)
     {
-        write_json_options(json_input.value(), options);
+        write_json_options(json_output.value(), options);
     }
 
 
