@@ -131,7 +131,6 @@ public:
 
         // Create the local populations with start index set
         for (auto pop : populations) {
-            std::cout << pop.name << ": " << pop.n_cells << "\n";
 
             populations_.insert({ pop.name, population_indexed(
                 pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx) });
@@ -191,8 +190,6 @@ public:
 
         // TODO: THis is copy paste from synapses_on
         for (auto project : connectome_) {
-            std::cout << project.pre_idx << "\n";
-            std::cout << project.post_idx << "\n";
             // Sanity check that the populations exist
             EXPECTS(populations_.count(project.pre_idx));
             EXPECTS(populations_.count(project.post_idx));
@@ -299,7 +296,7 @@ public:
                     sd_y *= ratio;
                 }
             }
-            std::cout << "POST GID: " <<gid << "\n";
+
             // Now we sample from the pre population based on the x,y location of the
             // post cell
             auto pre_locations = get_random_locations(gen, post_location,
@@ -327,7 +324,6 @@ public:
                 float weight = weight_distr(gen);
                 // Flip the sign of the weight depending if we are incorrect
                 weight = (weight_sign * weight) < 0?  -weight: weight;
-                std::cout << gid_pre << "\n";
 
                 connections.push_back({ gid_pre, weight,  delay });
             }
