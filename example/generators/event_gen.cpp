@@ -20,6 +20,7 @@
 #include <model.hpp>
 #include <recipe.hpp>
 #include <simple_sampler.hpp>
+#include <event_binner.hpp>
 
 using arb::cell_gid_type;
 using arb::cell_lid_type;
@@ -49,8 +50,9 @@ public:
         arb::cell c;
 
         c.add_soma(18.8/2.0); // convert 18.8 μm diameter to radius
-        c.soma()->add_mechanism("pas");
+        c.soma()->add_mechanism("hh");
 
+        c.add_detector({ 0,0 }, -20);
         // Add one synapse at the soma.
         // This synapse will be the target for all events, from both
         // event_generators.
@@ -82,10 +84,10 @@ public:
         time_type t0 = 0;
 
         // Define frequencies and weights for the excitatory and inhibitory generators.
-        double lambda_e =  hz_to_freq(500);
-        double lambda_i =  hz_to_freq(20);
+        double lambda_e =  hz_to_freq(8000);
+        double lambda_i =  hz_to_freq(2000);
         double w_e =  0.001;
-        double w_i = -0.005;
+        double w_i = -0.001;
 
         // Make two event generators.
         std::vector<arb::event_generator_ptr> gens;
@@ -124,6 +126,10 @@ public:
 
         return arb::probe_info{id, kind, cell_probe_address{loc, kind}};
     }
+
+    cell_size_type num_sources(cell_gid_type i) const override {
+        return 1;
+    }
 };
 
 int main() {
@@ -143,6 +149,7 @@ int main() {
     auto probe_id = cell_member_type{0, 0};
     // The schedule for sampling is 10 samples every 1 ms.
     auto sched = arb::regular_schedule(0.1);
+
     // This is where the voltage samples will be stored as (time, value) pairs
     arb::trace_data<double> voltage;
     // Now attach the sampler at probe_id, with sampling schedule sched, writing to voltage
@@ -153,6 +160,8 @@ int main() {
 
     // Write the samples to a json file.
     write_trace_json(voltage);
+
+    std::cout << "there were " << model.num_spikes() << " spikes\n";
 }
 
 void write_trace_json(const arb::trace_data<double>& trace) {
