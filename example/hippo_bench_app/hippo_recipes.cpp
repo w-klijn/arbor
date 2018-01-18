@@ -151,9 +151,9 @@ public:
 
         auto cell = make_basic_cell(morph, con_gen_.num_synapses_on(i), gen, opts);
 
-        EXPECTS(cell.num_segments() == cell_segments);
+EXPECTS(cell.num_segments() == cell_segments);
 
-        return util::unique_any(std::move(cell));
+return util::unique_any(std::move(cell));
 
     }
 
@@ -171,7 +171,7 @@ public:
     }
 
     probe_info get_probe(cell_member_type probe_id) const override {
-        if (probe_id.index>=num_probes(probe_id.gid)) {
+        if (probe_id.index >= num_probes(probe_id.gid)) {
             throw invalid_recipe_error("invalid probe id");
         }
 
@@ -180,25 +180,25 @@ public:
 
         cell_probe_address::probe_kind kind;
 
-        int stride = pdist_.membrane_voltage+pdist_.membrane_current;
+        int stride = pdist_.membrane_voltage + pdist_.membrane_current;
 
-        if (stride==1) {
+        if (stride == 1) {
             // Just one kind of probe.
-            kind = pdist_.membrane_voltage?
-                cell_probe_address::membrane_voltage: cell_probe_address::membrane_current;
+            kind = pdist_.membrane_voltage ?
+                cell_probe_address::membrane_voltage : cell_probe_address::membrane_current;
         }
         else {
-            EXPECTS(stride==2);
+            EXPECTS(stride == 2);
             // Both kinds available.
-            kind = (probe_id.index%stride==0)?
-                cell_probe_address::membrane_voltage: cell_probe_address::membrane_current;
+            kind = (probe_id.index%stride == 0) ?
+                cell_probe_address::membrane_voltage : cell_probe_address::membrane_current;
         }
 
-        cell_lid_type compartment = probe_id.index/stride;
-        segment_location loc{compartment, compartment? 0.5: 0.0};
+        cell_lid_type compartment = probe_id.index / stride;
+        segment_location loc{ compartment, compartment ? 0.5 : 0.0 };
 
         // Use probe kind as the token to be passed to a sampler.
-        return {probe_id, (int)kind, cell_probe_address{loc, kind}};
+        return { probe_id, (int)kind, cell_probe_address{loc, kind} };
     }
 
     cell_kind get_cell_kind(cell_gid_type i) const override {
@@ -216,19 +216,68 @@ public:
     }
 
     cell_size_type num_probes(cell_gid_type i) const override {
-        bool has_probe = (std::floor(i*pdist_.proportion)!=std::floor((i-1.0)*pdist_.proportion));
+        bool has_probe = (std::floor(i*pdist_.proportion) != std::floor((i - 1.0)*pdist_.proportion));
 
         if (!has_probe) {
             return 0;
         }
         else {
-            cell_size_type np = pdist_.all_segments? get_morphology(i).components(): 1;
-            return np*(pdist_.membrane_voltage+pdist_.membrane_current);
+            cell_size_type np = pdist_.all_segments ? get_morphology(i).components() : 1;
+            return np*(pdist_.membrane_voltage + pdist_.membrane_current);
         }
     }
 
-    std::vector<event_generator_ptr> event_generators(cell_gid_type) const override {
-        return {};
+    // Return two generators attached to the one cell.
+    std::vector<arb::event_generator_ptr> event_generators(cell_gid_type gid) const override {
+        auto kind = con_gen_.get_cell_kind(gid);
+
+        // For now only cable1d_neuron support events
+        if (kind != arb::cell_kind::cable1d_neuron) {
+            return {};
+        }
+
+        nlohmann::json const& opts = con_gen_.get_cell_opts(gid);
+
+        // If there are no "poisson_generators" event generators
+        if (opts.find("poisson_generators") == opts.end()) {
+            return {};
+        }
+
+        // We need a random number generator
+        using RNG = std::mt19937_64;
+        using pgen = arb::poisson_generator<RNG>;
+
+        auto hz_to_freq = [](double hz) { return hz*1e-3; };
+
+
+        // a counter needed to assure unique rng seeds per event generator
+        unsigned idx = 1;
+
+        std::vector<arb::event_generator_ptr> gens;
+        for (nlohmann::json::const_iterator it = opts["poisson_generators"].begin();
+            it != opts["poisson_generators"].end(); ++it) {
+
+            // Get values
+            double rate = it.value()["rate"];
+            double weight = it.value()["weight"];
+            double start_time = it.value()["start"];
+
+            // Sanity skip if generator would not do anything
+            if (rate == 0.0 || weight == 0.0) {
+                continue;
+            }
+
+            gens.push_back(
+                arb::make_event_generator<pgen>(
+                    cell_member_type{ 0,0 },        // Target synapse (gid, local_id).
+                    weight,
+                    RNG(gid + idx * 29562872),   // TODO: Better random number generation
+                    start_time,
+                    hz_to_freq(rate)));
+            idx++;
+
+        }
+        return gens;
     }
 
 protected:

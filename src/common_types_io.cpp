@@ -15,6 +15,8 @@ std::ostream& operator<<(std::ostream& o, arb::cell_kind k) {
         return o << "cable1d_neuron";
     case arb::cell_kind::data_spike_source:
         return o << "data_spike_source";
+    case arb::cell_kind::inhomogeneous_poisson_spike_source:
+        return o << "inhomogeneous_poisson_spike_source";
     }
     return o;
 }
