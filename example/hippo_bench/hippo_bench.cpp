@@ -224,7 +224,7 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
         p.input_spike_path = options.input_spike_path;
     }
 
-    return make_basic_rgraph_recipe(options.cells, p, pdist);
+    return make_hippo_bench_recipe(options.cells, p, pdist);
 
 }
 
