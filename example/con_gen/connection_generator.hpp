@@ -150,6 +150,11 @@ struct cell_pars {
         synapses_per_cell(synapses_per_cell),
         spike_threshold(spike_threshold)
     {}
+
+    // Needed to suppress warnings, but should never be called
+    cell_pars() {
+        EXPECTS(false);
+    }
 };
 
 class connection_generator {
@@ -205,20 +210,82 @@ public:
     }
 
 
-    // Returns a json file with the options for gid
-    nlohmann::json const get_cell_opts(arb::cell_gid_type gid) const {
-
-
-
+    // Returns a struct with the cell parameters
+    arb_con_gen::cell_pars const get_cell_opts(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
-        nlohmann::json options;
 
         for (auto& it : population_ranges) {
-            if (gid >= std::get<0>(it) && gid < std::get<1>(it))
-                options = populations_.at(std::get<2>(it)).cell_opts;
+            if (gid >= std::get<0>(it) && gid < std::get<1>(it)) {
+                auto const& cell_pars_json = populations_.at(std::get<2>(it)).cell_opts;
+
+                cell_pars pars(
+                    cell_pars_json["compartments_per_segment"],
+                    cell_pars_json["synapse_type"],
+                    cell_pars_json["dendrite_mechanism"],
+                    cell_pars_json["dendrite_rL"],
+                    cell_pars_json["soma_mechanism"],
+                    cell_pars_json["synapses_per_cell"],
+                    cell_pars_json["spike_threshold"]);
+                return pars;
+            }
         }
-        return options;
+
+        EXPECTS(false);
+        return {};
     }
+
+    std::vector<arb_con_gen::poisson_event_pars> const get_cell_poisson_generators(arb::cell_gid_type gid) const {
+        EXPECTS(gid < n_cells_);
+
+        std::vector<arb_con_gen::poisson_event_pars> generator_pars;
+
+        for (auto& it : population_ranges) {
+            // Find the matching population
+            if (gid >= std::get<0>(it) && gid < std::get<1>(it)) {
+                // Json description
+                auto const& cell_pars_json = populations_.at(std::get<2>(it)).cell_opts;
+
+                // If no generators declared
+                if (cell_pars_json.find("poisson_generators") == cell_pars_json.end()) {
+                     return generator_pars;
+                }
+
+                //Loop over the generators
+                for (nlohmann::json::const_iterator it = cell_pars_json["poisson_generators"].begin();
+                    it != cell_pars_json["poisson_generators"].end(); ++it) {
+                    generator_pars.push_back({
+                        it.value()["rate"], it.value()["weight"], it.value()["start"]
+                    });
+                }
+
+                return generator_pars;
+            }
+        }
+
+        EXPECTS(false);
+        return {};
+    }
+
+    //// If there are no "poisson_generators" event generators
+    //if (opts.find("poisson_generators") == opts.end()) {
+    //    return {};
+    //}
+
+    //// We need a random number generator
+    //using RNG = std::mt19937_64;
+    //using pgen = arb::poisson_generator<RNG>;
+
+    //auto hz_to_freq = [](double hz) { return hz*1e-3; };
+
+
+    //// a counter needed to assure unique rng seeds per event generator
+    //unsigned idx = 1;
+
+    //std::vector<arb::event_generator_ptr> gens;
+    //for (nlohmann::json::const_iterator it = opts["poisson_generators"].begin();
+    //    it != opts["poisson_generators"].end(); ++it) {
+
+
 
     // Returns the number of synapses on this cell
     arb::cell_size_type num_synapses_on(arb::cell_gid_type gid) const {

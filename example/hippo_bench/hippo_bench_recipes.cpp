@@ -26,26 +26,15 @@ namespace arb {
 template <typename RNG>
 cell make_basic_cell(
     const morphology& morph,
-    unsigned compartments_per_segment,
-    unsigned num_synapses,
-    const std::string& syn_type,
+    arb_con_gen::cell_pars const & cell_pars,
     RNG& rng)
 {
-    arb_con_gen::cell_pars cell_pars(
-        compartments_per_segment,
-        syn_type,
-        "pas",
-        100.0,
-        "hh",
-        num_synapses,
-        20.0);
-
     arb::cell cell = make_cell(morph, true);
 
     for (auto& segment: cell.segments()) {
         if (cell_pars.compartments_per_segment!=0) {
             if (cable_segment* cable = segment->as_cable()) {
-                cable->set_compartments(compartments_per_segment);
+                cable->set_compartments(cell_pars.compartments_per_segment);
             }
         }
 
@@ -62,7 +51,6 @@ cell make_basic_cell(
 
     // Distribute the synapses at random locations the terminal dendrites in a
     // round robin manner.
-
     morph.assert_valid();
     std::vector<unsigned> terminals;
     for (const auto& section: morph.sections) {
@@ -116,8 +104,8 @@ public:
 
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
-        auto cell = make_basic_cell(morph, param_.num_compartments, param_.num_synapses,
-                        param_.synapse_type, gen);
+
+        auto cell = make_basic_cell(morph, con_gen_.get_cell_opts(i), gen);
 
         EXPECTS(cell.num_segments()==cell_segments);
         EXPECTS(cell.synapses().size()==num_targets(i));
