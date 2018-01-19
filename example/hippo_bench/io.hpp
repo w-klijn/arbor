@@ -26,9 +26,6 @@ struct cl_options {
     util::optional<std::string> morphologies;
     bool morph_rr = false; // False => pick morphologies randomly, true => pick morphologies round-robin.
 
-    // Network type (default is rgraph):
-    bool all_to_all = false;
-    bool ring = false;
 
     // Simulation running parameters:
     double tfinal = 100.;

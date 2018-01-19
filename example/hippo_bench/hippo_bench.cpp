@@ -29,7 +29,7 @@
 #include <util/nop.hpp>
 
 #include "io.hpp"
-#include "miniapp_recipes.hpp"
+#include "hippo_bench_recipes.hpp"
 #include "trace.hpp"
 
 using namespace arb;
@@ -216,7 +216,7 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
     p.num_compartments = options.compartments_per_segment;
 
     // TODO: Put all recipe parameters in the recipes file
-    p.num_synapses = options.all_to_all? options.cells-1: options.synapses_per_cell;
+    p.num_synapses = options.synapses_per_cell;
     p.synapse_type = options.syn_type;
 
     // Parameters for spike input from file
@@ -224,15 +224,8 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
         p.input_spike_path = options.input_spike_path;
     }
 
-    if (options.all_to_all) {
-        return make_basic_kgraph_recipe(options.cells, p, pdist);
-    }
-    else if (options.ring) {
-        return make_basic_ring_recipe(options.cells, p, pdist);
-    }
-    else {
-        return make_basic_rgraph_recipe(options.cells, p, pdist);
-    }
+    return make_basic_rgraph_recipe(options.cells, p, pdist);
+
 }
 
 sample_trace make_trace(const probe_info& probe) {
