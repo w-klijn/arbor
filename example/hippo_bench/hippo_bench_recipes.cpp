@@ -11,7 +11,7 @@
 #include <util/debug.hpp>
 
 #include "io.hpp"
-#include "miniapp_recipes.hpp"
+#include "hippo_bench_recipes.hpp"
 #include "morphology_pool.hpp"
 
 
@@ -176,6 +176,43 @@ public:
         }
     }
 
+    // Return two generators attached to the one cell.
+    std::vector<arb::event_generator_ptr> event_generators(cell_gid_type gid) const override {
+        if (gid == ncell_) {
+            return {};
+        }
+        using RNG = std::mt19937_64;
+        using pgen = arb::poisson_generator<RNG>;
+
+        auto hz_to_freq = [](double hz) { return hz*1e-3; };
+        time_type t0 = 0;
+
+        // Define frequencies and weights for the excitatory and inhibitory generators.
+        double lambda_e = hz_to_freq(500);
+        double lambda_i = hz_to_freq(20);
+        double w_e = 0.001;
+        double w_i = -0.005;
+
+        // Make two event generators.
+        std::vector<arb::event_generator_ptr> gens;
+
+        // Add excitatory generator
+        gens.push_back(
+            arb::make_event_generator<pgen>(
+                cell_member_type{ 0,0 }, // Target synapse (gid, local_id).
+                w_e,                   // Weight of events to deliver
+                RNG(29562872),         // Random number generator to use
+                t0,                    // Events start being delivered from this time
+                lambda_e));            // Expected frequency (events per ms)
+
+                                       // Add inhibitory generator
+        gens.push_back(
+            arb::make_event_generator<pgen>(
+                cell_member_type{ 0,0 }, w_i, RNG(86543891), t0, lambda_i));
+
+        return gens;
+    }
+
 protected:
     template <typename RNG>
     cell_connection draw_connection_params(RNG& rng) const {
@@ -207,49 +244,6 @@ protected:
     }
 };
 
-class basic_ring_recipe: public basic_cell_recipe {
-public:
-    basic_ring_recipe(cell_gid_type ncell,
-                      basic_recipe_param param,
-                      probe_distribution pdist = probe_distribution{}):
-        basic_cell_recipe(ncell, std::move(param), std::move(pdist)) {}
-
-    std::vector<cell_connection> connections_on(cell_gid_type i) const override {
-        std::vector<cell_connection> conns;
-
-        // The rss_cell does not have inputs
-        if (i == ncell_) {
-            return conns;
-        }
-
-        auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
-
-        cell_gid_type prev = i==0? ncell_-1: i-1;
-        for (unsigned t=0; t<param_.num_synapses; ++t) {
-            cell_connection cc = draw_connection_params(gen);
-            cc.source = {prev, 0};
-            cc.dest = {i, t};
-            conns.push_back(cc);
-
-            // The rss_cell spikes at t=0, with these connections it looks like
-            // (source % 20) == 0 spikes at that moment.
-            if (prev % 20 == 0) {
-                cc.source = {ncell_, 0}; // also add connection from reg spiker!
-                conns.push_back(cc);
-            }
-        }
-
-        return conns;
-    }
-};
-
-std::unique_ptr<recipe> make_basic_ring_recipe(
-        cell_gid_type ncell,
-        basic_recipe_param param,
-        probe_distribution pdist)
-{
-    return std::unique_ptr<recipe>(new basic_ring_recipe(ncell, param, pdist));
-}
 
 
 class basic_rgraph_recipe: public basic_cell_recipe {
@@ -269,31 +263,31 @@ public:
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
-        // The rss_cell does not have inputs
-        if (i == ncell_) {
-            return conns;
-        }
-        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
-        auto source_gen = std::mt19937(i*123+457); // ditto
+        //// The rss_cell does not have inputs
+        //if (i == ncell_) {
+        //    return conns;
+        //}
+        //auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
+        //auto source_gen = std::mt19937(i*123+457); // ditto
 
-        std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_-2);
+        //std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_-2);
 
-        for (unsigned t=0; t<param_.num_synapses; ++t) {
-            auto source = source_distribution(source_gen);
-            if (source>=i) ++source;
+        //for (unsigned t=0; t<param_.num_synapses; ++t) {
+        //    auto source = source_distribution(source_gen);
+        //    if (source>=i) ++source;
 
-            cell_connection cc = draw_connection_params(conn_param_gen);
-            cc.source = {source, 0};
-            cc.dest = {i, t};
-            conns.push_back(cc);
+        //    cell_connection cc = draw_connection_params(conn_param_gen);
+        //    cc.source = {source, 0};
+        //    cc.dest = {i, t};
+        //    conns.push_back(cc);
 
-            // The rss_cell spikes at t=0, with these connections it looks like
-            // (source % 20) == 0 spikes at that moment.
-            if (source % 20 == 0) {
-                cc.source = {ncell_, 0};
-                conns.push_back(cc);
-            }
-        }
+        //    // The rss_cell spikes at t=0, with these connections it looks like
+        //    // (source % 20) == 0 spikes at that moment.
+        //    if (source % 20 == 0) {
+        //        cc.source = {ncell_, 0};
+        //        conns.push_back(cc);
+        //    }
+        //}
 
         return conns;
     }
@@ -305,56 +299,6 @@ std::unique_ptr<recipe> make_basic_rgraph_recipe(
         probe_distribution pdist)
 {
     return std::unique_ptr<recipe>(new basic_rgraph_recipe(ncell, param, pdist));
-}
-
-class basic_kgraph_recipe: public basic_cell_recipe {
-public:
-    basic_kgraph_recipe(cell_gid_type ncell,
-                      basic_recipe_param param,
-                      probe_distribution pdist = probe_distribution{}):
-        basic_cell_recipe(ncell, std::move(param), std::move(pdist))
-    {
-        if (std::size_t(param.num_synapses) != ncell-1) {
-            throw invalid_recipe_error("number of synapses per cell must equal number "
-                "of cells minus one in complete graph model");
-        }
-    }
-
-    std::vector<cell_connection> connections_on(cell_gid_type i) const override {
-        std::vector<cell_connection> conns;
-        // The rss_cell does not have inputs
-        if (i == ncell_) {
-            return conns;
-        }
-        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
-
-        for (unsigned t=0; t<param_.num_synapses; ++t) {
-            cell_gid_type source = t>=i? t+1: t;
-            EXPECTS(source<ncell_);
-
-            cell_connection cc = draw_connection_params(conn_param_gen);
-            cc.source = {source, 0};
-            cc.dest = {i, t};
-            conns.push_back(cc);
-
-            // The rss_cell spikes at t=0, with these connections it looks like
-            // (source % 20) == 0 spikes at that moment.
-            if (source % 20 == 0) {
-                cc.source = {ncell_, 0};
-                conns.push_back(cc);
-            }
-        }
-
-        return conns;
-    }
-};
-
-std::unique_ptr<recipe> make_basic_kgraph_recipe(
-        cell_gid_type ncell,
-        basic_recipe_param param,
-        probe_distribution pdist)
-{
-    return std::unique_ptr<recipe>(new basic_kgraph_recipe(ncell, param, pdist));
 }
 
 } // namespace arb
