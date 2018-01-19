@@ -29,8 +29,9 @@
 #include <util/nop.hpp>
 
 #include "io.hpp"
+#include "../miniapp/trace.hpp"
+
 #include "hippo_bench_recipes.hpp"
-#include "trace.hpp"
 
 using namespace arb;
 
@@ -42,7 +43,7 @@ using file_export_type = io::exporter_spike_file<global_policy>;
 using communicator_type = communication::communicator<communication::global_policy>;
 
 void banner(hw::node_info);
-std::unique_ptr<recipe> make_recipe(const io::cl_options&, const probe_distribution&);
+std::unique_ptr<recipe> make_recipe(const hippo::cl_options&, const arb::probe_distribution&);
 sample_trace make_trace(const probe_info& probe);
 
 void report_compartment_stats(const recipe&);
@@ -53,16 +54,10 @@ int main(int argc, char** argv) {
     try {
         util::meter_manager meters;
         meters.start();
-        std::cout << util::mask_stream(global_policy::id()==0);
+
+        std::cout << util::mask_stream(global_policy::id() == 0);
         // read parameters
-        io::cl_options options = io::read_options(argc, argv, global_policy::id()==0);
-
-        // determine what to attach probes to
-        probe_distribution pdist;
-        pdist.proportion = options.probe_ratio;
-        pdist.all_segments = !options.probe_soma_only;
-
-        auto recipe = make_recipe(options, pdist);
+        hippo::cl_options options = hippo::read_options(argc, argv, global_policy::id() == 0);
 
         // If compiled in dry run mode we have to set up the dry run
         // communicator to simulate the number of ranks that may have been set
@@ -71,12 +66,10 @@ int main(int argc, char** argv) {
             // Dry run mode requires that each rank has the same number of cells.
             // Here we increase the total number of cells if required to ensure
             // that this condition is satisfied.
-
-            auto nr_cells = recipe->num_cells();
-            auto cells_per_rank = nr_cells / options.dry_run_ranks;
-            if (nr_cells % options.dry_run_ranks) {
+            auto cells_per_rank = options.cells / options.dry_run_ranks;
+            if (options.cells % options.dry_run_ranks) {
                 ++cells_per_rank;
-                nr_cells = cells_per_rank*options.dry_run_ranks;
+                options.cells = cells_per_rank*options.dry_run_ranks;
             }
 
             global_policy::set_sizes(options.dry_run_ranks, cells_per_rank);
@@ -86,17 +79,22 @@ int main(int argc, char** argv) {
         // threading back end, and 1 gpu if available.
         hw::node_info nd;
         nd.num_cpu_cores = threading::num_threads();
-        nd.num_gpus = hw::num_gpus()>0? 1: 0;
+        nd.num_gpus = hw::num_gpus()>0 ? 1 : 0;
         banner(nd);
-
 
         meters.checkpoint("setup");
 
+        // determine what to attach probes to
+        arb::probe_distribution pdist;
+        pdist.proportion = options.probe_ratio;
+        pdist.all_segments = !options.probe_soma_only;
+
+        auto recipe = make_recipe(options, pdist);
         if (options.report_compartments) {
             report_compartment_stats(*recipe);
         }
 
-        auto register_exporter = [] (const io::cl_options& options) {
+        auto register_exporter = [](const hippo::cl_options& options) {
             return
                 util::make_unique<file_export_type>(
                     options.file_name, options.output_path,
@@ -109,29 +107,29 @@ int main(int argc, char** argv) {
         // Set up samplers for probes on local cable cells, as requested
         // by command line options.
         std::vector<sample_trace> sample_traces;
-        for (const auto& g: decomp.groups) {
-            if (g.kind==cable1d_neuron) {
-                for (auto gid: g.gids) {
+        for (const auto& g : decomp.groups) {
+            if (g.kind == cable1d_neuron) {
+                for (auto gid : g.gids) {
                     if (options.trace_max_gid && gid>*options.trace_max_gid) {
                         continue;
                     }
 
-                    for (cell_lid_type j: make_span(0, recipe->num_probes(gid))) {
-                        sample_traces.push_back(make_trace(recipe->get_probe({gid, j})));
+                    for (cell_lid_type j : make_span(0, recipe->num_probes(gid))) {
+                        sample_traces.push_back(make_trace(recipe->get_probe({ gid, j })));
                     }
                 }
             }
         }
 
         auto ssched = regular_schedule(options.sample_dt);
-        for (auto& trace: sample_traces) {
+        for (auto& trace : sample_traces) {
             m.add_sampler(one_probe(trace.probe_id), ssched, make_simple_sampler(trace.samples));
         }
 
         // Specify event binning/coalescing.
         auto binning_policy =
-            options.bin_dt==0? binning_kind::none:
-            options.bin_regular? binning_kind::regular:
+            options.bin_dt == 0 ? binning_kind::none :
+            options.bin_regular ? binning_kind::regular :
             binning_kind::following;
 
         m.set_binning_policy(binning_policy, options.bin_dt);
@@ -143,15 +141,15 @@ int main(int argc, char** argv) {
                 file_exporter = register_exporter(options);
                 m.set_local_spike_callback(
                     [&](const std::vector<spike>& spikes) {
-                        file_exporter->output(spikes);
-                    });
+                    file_exporter->output(spikes);
+                });
             }
-            else if(communication::global_policy::id()==0) {
+            else if (communication::global_policy::id() == 0) {
                 file_exporter = register_exporter(options);
                 m.set_global_spike_callback(
                     [&](const std::vector<spike>& spikes) {
-                       file_exporter->output(spikes);
-                    });
+                    file_exporter->output(spikes);
+                });
             }
         }
 
@@ -167,23 +165,23 @@ int main(int argc, char** argv) {
         std::cout << "there were " << m.num_spikes() << " spikes\n";
 
         // save traces
-        auto write_trace = options.trace_format=="json"? write_trace_json: write_trace_csv;
-        for (const auto& trace: sample_traces) {
+        auto write_trace = options.trace_format == "json" ? write_trace_json : write_trace_csv;
+        for (const auto& trace : sample_traces) {
             write_trace(trace, options.trace_prefix);
         }
 
         auto report = util::make_meter_report(meters);
         std::cout << report;
-        if (global_policy::id()==0) {
+        if (global_policy::id() == 0) {
             std::ofstream fid;
             fid.exceptions(std::ios_base::badbit | std::ios_base::failbit);
             fid.open("meters.json");
             fid << std::setw(1) << util::to_json(report) << "\n";
         }
     }
-    catch (io::usage_error& e) {
+    catch (hippo::usage_error& e) {
         // only print usage/startup errors on master
-        std::cerr << util::mask_stream(global_policy::id()==0);
+        std::cerr << util::mask_stream(global_policy::id() == 0);
         std::cerr << e.what() << "\n";
         return 1;
     }
@@ -196,17 +194,17 @@ int main(int argc, char** argv) {
 
 void banner(hw::node_info nd) {
     std::cout << "==========================================\n";
-    std::cout << "  Arbor miniapp\n";
+    std::cout << "  hippocampus benchmark model app\n";
     std::cout << "  - distributed : " << global_policy::size()
-              << " (" << std::to_string(global_policy::kind()) << ")\n";
+        << " (" << std::to_string(global_policy::kind()) << ")\n";
     std::cout << "  - threads     : " << nd.num_cpu_cores
-              << " (" << threading::description() << ")\n";
+        << " (" << threading::description() << ")\n";
     std::cout << "  - gpus        : " << nd.num_gpus << "\n";
     std::cout << "==========================================\n";
 }
 
-std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_distribution& pdist) {
-    basic_recipe_param p;
+std::unique_ptr<recipe> make_recipe(const hippo::cl_options& options, const arb::probe_distribution& pdist) {
+    arb::basic_recipe_param p;
 
     if (options.morphologies) {
         std::cout << "loading morphologies...\n";
@@ -216,21 +214,25 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
     }
     p.morphology_round_robin = options.morph_rr;
 
-    p.num_compartments = options.compartments_per_segment;
-
-    // TODO: Put all recipe parameters in the recipes file
-    p.num_synapses = options.synapses_per_cell;
-    p.synapse_type = options.syn_type;
 
     // Parameters for spike input from file
     if (options.spike_file_input) {
         p.input_spike_path = options.input_spike_path;
     }
 
+    if (options.json_connectome) {
+        EXPECTS(options.json_populations);
+        p.json_connectome = options.json_connectome.value();
+    }
 
-    return make_hippo_bench_recipe(p, pdist);
+    if (options.json_populations) {
+        EXPECTS(options.json_connectome);
+        p.json_populations = options.json_populations.value();
+    }
 
+    return arb::make_hippo_bench_recipe(p, pdist);
 }
+
 
 sample_trace make_trace(const probe_info& probe) {
     std::string name = "";
@@ -244,13 +246,13 @@ sample_trace make_trace(const probe_info& probe) {
         break;
     case cell_probe_address::membrane_current:
         name = "i";
-        units = "mA/cm²";
+        units = "mA/cm�";
         break;
-    default: ;
+    default:;
     }
-    name += addr.location.segment? "dend" : "soma";
+    name += addr.location.segment ? "dend" : "soma";
 
-    return sample_trace{probe.id, name, units};
+    return sample_trace{ probe.id, name, units };
 }
 
 void report_compartment_stats(const recipe& rec) {
@@ -270,5 +272,5 @@ void report_compartment_stats(const recipe& rec) {
         ncomp_max = std::max(ncomp_max, ncomp);
     }
 
-    std::cout << "compartments/cell: min=" << ncomp_min <<"; max=" << ncomp_max << "; mean=" << (double)ncomp_total/ncell << "\n";
+    std::cout << "compartments/cell: min=" << ncomp_min << "; max=" << ncomp_max << "; mean=" << (double)ncomp_total / ncell << "\n";
 }

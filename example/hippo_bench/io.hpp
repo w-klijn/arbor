@@ -11,21 +11,19 @@
 #include <util/optional.hpp>
 #include <util/path.hpp>
 
-namespace arb {
-namespace io {
+namespace hippo {
 
 // Holds the options for a simulation run.
 // Default constructor gives default options.
 
+
 struct cl_options {
-    // Cell parameters:
-    uint32_t synapses_per_cell = 500;
-    std::string syn_type = "expsyn";
-    uint32_t compartments_per_segment = 100;
-    util::optional<std::string> morphologies;
+        // Cell parameters:
+    uint32_t cells = 1000;
+    arb::util::optional<std::string> morphologies;
     bool morph_rr = false; // False => pick morphologies randomly, true => pick morphologies round-robin.
 
-
+    // Network type (default is rgraph):
     // Simulation running parameters:
     double tfinal = 100.;
     double dt = 0.025;
@@ -37,7 +35,7 @@ struct cl_options {
     bool probe_soma_only = false;
     double probe_ratio = 0;  // Proportion of cells to probe.
     std::string trace_prefix = "trace_";
-    util::optional<unsigned> trace_max_gid; // Only make traces up to this gid.
+    arb::util::optional<unsigned> trace_max_gid; // Only make traces up to this gid.
     std::string trace_format = "json"; // Support only 'json' and 'csv'.
 
     // Parameters for spike output.
@@ -52,6 +50,11 @@ struct cl_options {
     bool spike_file_input = false;
     std::string input_spike_path;  // Path to file with spikes
 
+    // populations and connectome
+    arb::util::optional<std::string> json_connectome;
+    arb::util::optional<std::string> json_populations;
+
+
     // Dry run parameters (pertinent only when built with 'dryrun' distrib model).
     int dry_run_ranks = 1;
 
@@ -65,16 +68,16 @@ struct cl_options {
     bool verbose = false;
 };
 
-class usage_error: public std::runtime_error {
+class usage_error : public std::runtime_error {
 public:
     template <typename S>
-    usage_error(S&& whatmsg): std::runtime_error(std::forward<S>(whatmsg)) {}
+    usage_error(S&& whatmsg) : std::runtime_error(std::forward<S>(whatmsg)) {}
 };
 
-class model_description_error: public std::runtime_error {
+class model_description_error : public std::runtime_error {
 public:
     template <typename S>
-    model_description_error(S&& whatmsg): std::runtime_error(std::forward<S>(whatmsg)) {}
+    model_description_error(S&& whatmsg) : std::runtime_error(std::forward<S>(whatmsg)) {}
 };
 
 std::ostream& operator<<(std::ostream& o, const cl_options& opt);
@@ -85,7 +88,8 @@ cl_options read_options(int argc, char** argv, bool allow_write = true);
 /// Spike times are expected to be in milli seconds floating points
 /// On spike-time per line
 
-std::vector<time_type>  get_parsed_spike_times_from_path(arb::util::path path);
+std::vector<arb::time_type>  get_parsed_spike_times_from_path(arb::util::path path);
 
-} // namespace io
-} // namespace arb
+} // namespace hippo
+
+

@@ -1,379 +1,247 @@
-#include <algorithm>
 #include <exception>
 #include <fstream>
 #include <iostream>
 #include <istream>
-#include <memory>
-#include <sstream>
 #include <string>
-#include <type_traits>
 
-#include <tclap/CmdLine.h>
+#include <tinyopt.hpp>
 #include <json/json.hpp>
-
-#include <util/meta.hpp>
 #include <util/optional.hpp>
 #include <util/strprintf.hpp>
 
 #include "io.hpp"
 
-// Let TCLAP understand value arguments that are of an optional type.
+using arb::util::optional;
 
-namespace TCLAP {
-    template <typename V>
-    struct ArgTraits<arb::util::optional<V>> {
-        using ValueCategory = ValueLike;
-    };
-} // namespace TCLAP
+namespace hippo {
 
-namespace arb {
 
-namespace util {
-    // Using static here because we do not want external linkage for this operator.
-    template <typename V>
-    static std::istream& operator>>(std::istream& I, optional<V>& v) {
-        V u;
-        if (I >> u) {
-            v = u;
-        }
-        return I;
-    }
-}
+std::string usage_str = R"(
+[OPTION]...
 
-namespace io {
+-n, --count=int        (10000)  Number of individual Poisson cell to run.
 
-// Override annoying parameters listed back-to-front behaviour.
-//
-// TCLAP argument creation _prepends_ its arguments to the internal
-// list (_argList), where standard options --help etc. are already
-// pre-inserted.
-//
-// reorder_arguments() reverses the arguments to restore ordering,
-// and moves the standard options to the end.
-class CustomCmdLine: public TCLAP::CmdLine {
-public:
-    CustomCmdLine(const std::string &message, const std::string &version = "none"):
-        TCLAP::CmdLine(message, ' ', version, true)
-    {}
+And some explanation
+)";
 
-    void reorder_arguments() {
-        _argList.reverse();
-        for (auto opt: {"help", "version", "ignore_rest"}) {
-            auto i = std::find_if(
-                _argList.begin(), _argList.end(),
-                [&opt](TCLAP::Arg* a) { return a->getName()==opt; });
-
-            if (i!=_argList.end()) {
-                auto a = *i;
-                _argList.erase(i);
-                _argList.push_back(a);
-            }
-        }
-    }
-};
-
-// Update an option value from command line argument if set.
-template <
-    typename T,
-    typename Arg,
-    typename = util::enable_if_t<std::is_base_of<TCLAP::Arg, Arg>::value>
->
-static void update_option(T& opt, Arg& arg) {
-    if (arg.isSet()) {
-        opt = arg.getValue();
-    }
-}
-
-// Update an option value from json object if key present.
-template <typename T>
-static void update_option(T& opt, const nlohmann::json& j, const std::string& key) {
-    if (j.count(key)) {
-        opt = j[key];
-    }
-}
-
-// --- special case for string due to ambiguous overloading in json library.
-static void update_option(std::string& opt, const nlohmann::json& j, const std::string& key) {
-    if (j.count(key)) {
-        opt = j[key].get<std::string>();
-    }
-}
-
-// --- special case for optional values.
-template <typename T>
-static void update_option(util::optional<T>& opt, const nlohmann::json& j, const std::string& key) {
-    if (j.count(key)) {
-        auto value = j[key];
-        if (value.is_null()) {
-            opt = util::nullopt;
-        }
-        else {
-            opt = value.get<T>();
-        }
-    }
-}
+void parse_json_options(std::string &file_name, cl_options &options);
+void write_json_options(std::string &file_name, cl_options &options);
 
 // Read options from (optional) json file and command line arguments.
 cl_options read_options(int argc, char** argv, bool allow_write) {
-    cl_options options;
-    std::string save_file = "";
 
-    // Parse command line arguments.
+
+
+    // The set of varuiables that might be set from the commandline
+    optional<uint32_t> synapses_per_cell;
+    optional<arb::time_type> tfinal;
+    optional<std::string> json_config;
+    optional<std::string> json_output;
+    optional<std::string> json_connectome;
+    optional<std::string> json_populations;
+    optional<bool> verbose;
+
+    // Parse the possible command line parameters
     try {
-        cl_options defopts;
-
-        CustomCmdLine cmd("arbor miniapp harness", "0.1");
-
-        TCLAP::ValueArg<std::string> ifile_arg(
-            "i", "ifile",
-            "read parameters from json-formatted file <file name>",
-            false, "","file name", cmd);
-        TCLAP::ValueArg<std::string> ofile_arg(
-            "o", "ofile",
-            "save parameters to json-formatted file <file name>",
-            false, "","file name", cmd);
-        TCLAP::ValueArg<uint32_t> nsynapses_arg(
-            "s", "nsynapses", "number of synapses per cell",
-            false, defopts.synapses_per_cell, "integer", cmd);
-        TCLAP::ValueArg<std::string> syntype_arg(
-            "S", "syntype", "specify synapse type: expsyn or exp2syn",
-            false, defopts.syn_type, "string", cmd);
-        TCLAP::ValueArg<uint32_t> ncompartments_arg(
-            "c", "ncompartments", "number of compartments per segment",
-            false, defopts.compartments_per_segment, "integer", cmd);
-        TCLAP::ValueArg<double> tfinal_arg(
-            "t", "tfinal", "run simulation to <time> ms",
-            false, defopts.tfinal, "time", cmd);
-        TCLAP::ValueArg<double> dt_arg(
-            "d", "dt", "set simulation time step to <time> ms",
-            false, defopts.dt, "time", cmd);
-        TCLAP::ValueArg<double> bin_dt_arg(
-            "", "bin-dt", "set event binning interval to <time> ms",
-            false, defopts.bin_dt, "time", cmd);
-        TCLAP::SwitchArg bin_regular_arg(
-            "","bin-regular","use 'regular' binning policy instead of 'following'", cmd, false);
-        TCLAP::ValueArg<double> sample_dt_arg(
-            "", "sample-dt", "set sampling interval to <time> ms",
-            false, defopts.bin_dt, "time", cmd);
-        TCLAP::ValueArg<double> probe_ratio_arg(
-            "p", "probe-ratio", "proportion between 0 and 1 of cells to probe",
-            false, defopts.probe_ratio, "proportion", cmd);
-        TCLAP::SwitchArg probe_soma_only_arg(
-            "X", "probe-soma-only", "only probe cell somas, not dendrites", cmd, false);
-        TCLAP::ValueArg<std::string> trace_prefix_arg(
-            "P", "prefix", "write traces to files with prefix <prefix>",
-            false, defopts.trace_prefix, "string", cmd);
-        TCLAP::ValueArg<util::optional<unsigned>> trace_max_gid_arg(
-            "T", "trace-max-gid", "only trace probes on cells up to and including <gid>",
-            false, defopts.trace_max_gid, "gid", cmd);
-        TCLAP::ValueArg<std::string> trace_format_arg(
-            "F", "trace-format", "select trace data format: csv or json",
-            false, defopts.trace_prefix, "string", cmd);
-        TCLAP::ValueArg<util::optional<std::string>> morphologies_arg(
-            "M", "morphologies", "load morphologies from SWC files matching <glob>",
-            false, defopts.morphologies, "glob", cmd);
-        TCLAP::SwitchArg morph_rr_arg(
-             "", "morph-rr", "Serial rather than random morphology selection from pool", cmd, false);
-        TCLAP::SwitchArg report_compartments_arg(
-             "", "report-compartments", "Count compartments in cells before simulation", cmd, false);
-        TCLAP::SwitchArg spike_output_arg(
-            "f","spike-file-output","save spikes to file", cmd, false);
-        TCLAP::ValueArg<unsigned> dry_run_ranks_arg(
-            "D","dry-run-ranks","number of ranks in dry run mode",
-            false, defopts.dry_run_ranks, "positive integer", cmd);
-        TCLAP::SwitchArg profile_only_zero_arg(
-             "z", "profile-only-zero", "Only output profile information for rank 0", cmd, false);
-        TCLAP::SwitchArg verbose_arg(
-             "v", "verbose", "Present more verbose information to stdout", cmd, false);
-        TCLAP::ValueArg<std::string> ispike_arg(
-            "I", "ispike_file",
-            "Input spikes from file",
-            false, "", "file name", cmd);
-
-
-        cmd.reorder_arguments();
-        cmd.parse(argc, argv);
-
-        // Handle verbosity separately from other options: it is not considered part
-        // of the saved option state.
-        options.verbose = verbose_arg.getValue();
-
-        std::string ifile_name = ifile_arg.getValue();
-        if (ifile_name != "") {
-            // Read parameters from specified JSON file first, to allow
-            // overriding arguments on the command line.
-            std::ifstream fid(ifile_name);
-            if (fid) {
-                try {
-                    nlohmann::json fopts;
-                    fid >> fopts;
-                    update_option(options.synapses_per_cell, fopts, "synapses");
-                    update_option(options.syn_type, fopts, "syn_type");
-                    update_option(options.compartments_per_segment, fopts, "compartments");
-                    update_option(options.dt, fopts, "dt");
-                    update_option(options.bin_dt, fopts, "bin_dt");
-                    update_option(options.bin_regular, fopts, "bin_regular");
-                    update_option(options.tfinal, fopts, "tfinal");
-                    update_option(options.sample_dt, fopts, "sample_dt");
-                    update_option(options.probe_ratio, fopts, "probe_ratio");
-                    update_option(options.probe_soma_only, fopts, "probe_soma_only");
-                    update_option(options.trace_prefix, fopts, "trace_prefix");
-                    update_option(options.trace_max_gid, fopts, "trace_max_gid");
-                    update_option(options.trace_format, fopts, "trace_format");
-                    update_option(options.morphologies, fopts, "morphologies");
-                    update_option(options.morph_rr, fopts, "morph_rr");
-                    update_option(options.report_compartments, fopts, "report_compartments");
-
-                    // Parameters for spike output
-                    update_option(options.spike_file_output, fopts, "spike_file_output");
-                    if (options.spike_file_output) {
-                        update_option(options.single_file_per_rank, fopts, "single_file_per_rank");
-                        update_option(options.over_write, fopts, "over_write");
-                        update_option(options.output_path, fopts, "output_path");
-                        update_option(options.file_name, fopts, "file_name");
-                        update_option(options.file_extension, fopts, "file_extension");
-                    }
-
-                    update_option(options.spike_file_input, fopts, "spike_file_input");
-                    if (options.spike_file_input) {
-                        update_option(options.input_spike_path, fopts, "input_spike_path");
-                    }
-
-                    update_option(options.dry_run_ranks, fopts, "dry_run_ranks");
-
-                    update_option(options.profile_only_zero, fopts, "profile_only_zero");
-
-                }
-                catch (std::exception& e) {
-                    throw model_description_error(
-                        "unable to parse parameters in "+ifile_name+": "+e.what());
-                }
+        auto arg = argv + 1;
+        while (*arg) {
+            if (auto o = arb::to::parse_opt<uint32_t>(arg, 's', "synapses_per_cell"))        { synapses_per_cell = *o; }
+            else if (auto o = arb::to::parse_opt<arb::time_type>(arg, 't', "tfinal"))             { tfinal = *o; }
+            else if (auto o = arb::to::parse_opt<bool>(arg, 'v', "verbose"))                      { verbose = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_output"))             { json_output = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_config"))             { json_config = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_connectome"))         { json_connectome = *o; }
+            else if (auto o = arb::to::parse_opt<std::string>(arg, 0, "json_populations"))        { json_populations = *o; }
+            else if (auto o = arb::to::parse_opt(arg, 'h', "help")) {
+                arb::to::usage(argv[0], usage_str); exit(0);
             }
             else {
-                throw usage_error("unable to open model parameter file "+ifile_name);
+                throw arb::to::parse_opt_error(*arg, "unrecognized option");
             }
         }
-
-        update_option(options.synapses_per_cell, nsynapses_arg);
-        update_option(options.syn_type, syntype_arg);
-        update_option(options.compartments_per_segment, ncompartments_arg);
-        update_option(options.tfinal, tfinal_arg);
-        update_option(options.dt, dt_arg);
-        update_option(options.bin_dt, bin_dt_arg);
-        update_option(options.bin_regular, bin_regular_arg);
-
-        update_option(options.sample_dt, sample_dt_arg);
-        update_option(options.probe_ratio, probe_ratio_arg);
-        update_option(options.probe_soma_only, probe_soma_only_arg);
-        update_option(options.trace_prefix, trace_prefix_arg);
-        update_option(options.trace_max_gid, trace_max_gid_arg);
-        update_option(options.trace_format, trace_format_arg);
-        update_option(options.morphologies, morphologies_arg);
-        update_option(options.morph_rr, morph_rr_arg);
-        update_option(options.report_compartments, report_compartments_arg);
-        update_option(options.spike_file_output, spike_output_arg);
-        update_option(options.profile_only_zero, profile_only_zero_arg);
-        update_option(options.dry_run_ranks, dry_run_ranks_arg);
-
-        std::string is_file_name = ispike_arg.getValue();
-        if (is_file_name != "") {
-            options.spike_file_input = true;
-            update_option(options.input_spike_path, ispike_arg);
-        }
-
-        if (options.trace_format!="csv" && options.trace_format!="json") {
-            throw usage_error("trace format must be one of: csv, json");
-        }
-
-
-        save_file = ofile_arg.getValue();
     }
-    catch (TCLAP::ArgException& e) {
-        throw usage_error("error parsing command line argument "+e.argId()+": "+e.error());
+    catch (arb::to::parse_opt_error& e) {
+        std::cerr << argv[0] << ": " << e.what() << "\n";
+        std::cerr << "Try '" << argv[0] << " --help' for more information.\n";
+        std::exit(2);
+    }
+    catch (std::exception& e) {
+        std::cerr << "caught exception: " << e.what() << "\n";
+        std::exit(1);
     }
 
-    // Save option values if requested.
-    if (save_file != "" && allow_write) {
-        std::ofstream fid(save_file);
-        if (fid) {
-            try {
-                nlohmann::json fopts;
+    // Overwrite the default with 1. The json file and 2. command line options
+    // Grab the default options struct
+    cl_options options;
 
-                fopts["synapses"] = options.synapses_per_cell;
-                fopts["syn_type"] = options.syn_type;
-                fopts["compartments"] = options.compartments_per_segment;
-                fopts["dt"] = options.dt;
-                fopts["bin_dt"] = options.bin_dt;
-                fopts["bin_regular"] = options.bin_regular;
-                fopts["tfinal"] = options.tfinal;
-                fopts["sample_dt"] = options.sample_dt;
-                fopts["probe_ratio"] = options.probe_ratio;
-                fopts["probe_soma_only"] = options.probe_soma_only;
-                fopts["trace_prefix"] = options.trace_prefix;
-                if (options.trace_max_gid) {
-                    fopts["trace_max_gid"] = options.trace_max_gid.value();
-                }
-                else {
-                    fopts["trace_max_gid"] = nullptr;
-                }
-                fopts["trace_format"] = options.trace_format;
-                if (options.morphologies) {
-                    fopts["morphologies"] = options.morphologies.value();
-                }
-                else {
-                    fopts["morphologies"] = nullptr;
-                }
-                fopts["morph_rr"] = options.morph_rr;
-                fopts["report_compartments"] = options.report_compartments;
-                fid << std::setw(3) << fopts << "\n";
-
-            }
-            catch (std::exception& e) {
-                throw model_description_error(
-                    "unable to save parameters in "+save_file+": "+e.what());
-            }
-        }
-        else {
-            throw usage_error("unable to write to model parameter file "+save_file);
-        }
+    // Read parameters from specified JSON file first, to allow
+    // overriding arguments on the command line.
+    if (json_config)  {
+        parse_json_options(json_config.value(), options);
     }
+
+    // Now go over the other command line arguments
+    if (tfinal) {
+        options.tfinal = tfinal.value();
+    }
+
+    if (json_connectome) {
+        options.json_connectome = json_connectome.value();
+
+    }
+
+    if (json_populations) {
+        options.json_populations = json_populations.value();
+    }
+
+
+    if (json_output && allow_write)
+    {
+        write_json_options(json_output.value(), options);
+    }
+
 
     // If verbose output requested, emit option summary.
     if (options.verbose) {
         std::cout << options << "\n";
     }
-
     return options;
 }
 
+
+void parse_json_options(std::string &file_name, cl_options &options) {
+    // Ugly if statement because c++ does not have reflexion
+    std::ifstream fid(file_name);
+    if (fid) {
+        try {
+            nlohmann::json fopts;
+            fid >> fopts;
+            for (nlohmann::json::iterator it = fopts.begin(); it != fopts.end(); ++it) {
+                // To make this if else tree readable do not follow standard code formatting
+                // When adding options also add these in:  write_json_options() and  operator<<
+                if (it.key() == "bin_dt") { options.bin_dt = it.value(); }
+                else if (it.key() == "bin_regular") { options.bin_regular = it.value(); }
+                else if (it.key() == "dry_run_ranks") { options.dry_run_ranks = it.value(); }
+                else if (it.key() == "dt") { options.dt = it.value(); }
+                else if (it.key() == "file_extension") { std::string temp = it.value(); options.file_extension = temp; }
+                else if (it.key() == "file_name") { std::string temp = it.value(); options.file_name = temp; }
+                else if (it.key() == "morph_rr") { options.morph_rr = it.value(); }
+                else if (it.key() == "morphologies") { std::string temp = it.value(); options.morphologies = temp; }
+                else if (it.key() == "input_spike_path") { std::string temp = it.value(); options.input_spike_path = temp; }
+                else if (it.key() == "probe_ratio") { options.probe_ratio = it.value(); }
+                else if (it.key() == "probe_soma_only") { options.probe_soma_only = it.value(); }
+                else if (it.key() == "profile_only_zero") { options.profile_only_zero = it.value(); }
+                else if (it.key() == "report_compartments") { options.report_compartments = it.value(); }
+                else if (it.key() == "sample_dt") { options.sample_dt = it.value(); }
+                else if (it.key() == "single_file_per_rank") { options.single_file_per_rank = it.value(); }
+                else if (it.key() == "spike_file_input") { options.spike_file_input = it.value(); }
+                else if (it.key() == "spike_file_output") { options.spike_file_output = it.value(); }
+                else if (it.key() == "tfinal") { options.tfinal = it.value(); }
+                else if (it.key() == "trace_format") { std::string temp = it.value(); options.trace_format = temp; }
+                else if (it.key() == "trace_max_gid") { unsigned temp = it.value(); options.trace_max_gid = temp; }
+                else if (it.key() == "trace_prefix") { std::string temp = it.value(); options.trace_prefix = temp; }
+                else if (it.key() == "output_path") { std::string temp = it.value(); options.output_path = temp; }
+                else if (it.key() == "over_write") { options.over_write = it.value(); }
+                else {
+                    std::cerr << "Warning: Encountered an unknown key in config: " << file_name << "\n"
+                        << "Key: " << it.key() << "    Value: " << it.value() << "\n";
+                }
+            }
+        }
+        catch (std::exception& e) {
+            throw model_description_error(
+                "unable to parse parameters in " + file_name + ": " + e.what());
+        }
+
+    }
+    else {
+        throw model_description_error("Unable to open file" + file_name);
+    }
+}
+
+void write_json_options(std::string &file_name, cl_options &options) {
+    std::ofstream fid(file_name);
+    if (fid) {
+        try {
+            nlohmann::json fopts;
+            // To make this if else tree readable do not follow standard code formatting
+            if (options.morphologies) {
+                fopts["morphologies"] = options.morphologies.value();
+            }
+            if (options.trace_max_gid) {
+                fopts["trace_max_gid"] = options.trace_max_gid.value();
+            }
+
+            fopts["bin_dt"] = options.bin_dt;
+            fopts["bin_regular"] = options.bin_regular;
+            fopts["dry_run_ranks"] = options.dry_run_ranks;
+            fopts["dt"] = options.dt;
+            fopts["file_extension"] = options.file_extension;
+            fopts["file_name"] = options.file_name;
+            fopts["input_spike_path"] = options.input_spike_path;
+            fopts["morph_rr"] = options.morph_rr;
+            fopts["profile_only_zero"] = options.profile_only_zero;
+            fopts["probe_soma_only"] = options.probe_soma_only;
+            fopts["probe_ratio"] = options.probe_ratio;
+            fopts["report_compartments"] = options.report_compartments;
+            fopts["sample_dt"] = options.sample_dt;
+            fopts["single_file_per_rank"] = options.single_file_per_rank;
+            fopts["spike_file_input"] = options.spike_file_input;
+            fopts["spike_file_output"] = options.spike_file_output;
+            fopts["tfinal"] = options.tfinal;
+            fopts["trace_prefix"] = options.trace_prefix;
+            fopts["trace_format"] = options.trace_format;
+            fopts["output_path"] = options.output_path;
+            fopts["over_write"] = options.over_write;
+
+            fid << std::setw(3) << fopts << "\n";
+
+        }
+        catch (std::exception& e) {
+            throw model_description_error(
+                "unable to save parameters in " + file_name + ": " + e.what());
+        }
+    }
+    else {
+        throw usage_error("unable to write to model parameter file " + file_name);
+    }
+
+}
+
+
 std::ostream& operator<<(std::ostream& o, const cl_options& options) {
-    o << "simulation options:\n";
-
-    o << "  compartments/segment : " << options.compartments_per_segment << "\n";
-    o << "  synapses/cell        : " << options.synapses_per_cell << "\n";
-    o << "  simulation time      : " << options.tfinal << "\n";
-    o << "  dt                   : " << options.dt << "\n";
-    o << "  binning dt           : " << options.bin_dt << "\n";
-    o << "  binning policy       : " <<
-        (options.bin_dt==0? "none": options.bin_regular? "regular": "following") << "\n";
-    o << "  sample dt            : " << options.sample_dt << "\n";
-    o << "  probe ratio          : " << options.probe_ratio << "\n";
-    o << "  probe soma only      : " << (options.probe_soma_only ? "yes" : "no") << "\n";
-    o << "  trace prefix         : " << options.trace_prefix << "\n";
-    o << "  trace max gid        : ";
-    if (options.trace_max_gid) {
-       o << *options.trace_max_gid;
-    }
-    o << "\n";
-    o << "  trace format         : " << options.trace_format << "\n";
-    o << "  morphologies         : ";
+    cl_options defaults;
+    // These are not sorted alphabet, we need to think about how to represent this
+    o << "simulation options: \n";
     if (options.morphologies) {
-       o << *options.morphologies;
+        o << "  morphologies            : " << (options.morphologies.value() == defaults.morphologies.value() ? " " : " * ")     << options.morphologies.value() << "\n";
     }
-    o << "\n";
-    o << "  morphology r-r       : " << (options.morph_rr ? "yes" : "no") << "\n";
-    o << "  report compartments  : " << (options.report_compartments ? "yes" : "no") << "\n";
+    o << "  morph_rr                : " << (options.morph_rr == defaults.morph_rr ? " " : " * ")                                 << options.morph_rr << "\n";
+    o << "  tfinal                  : " << (options.tfinal == defaults.tfinal ? " " : " * ")                                     << options.tfinal << "\n";
+    o << "  dt                      : " << (options.dt == defaults.dt ? " " : " * ")                                             << options.dt << "\n";
+    o << "  bin_regular             : " << (options.bin_regular == defaults.bin_regular ? " " : " * ")                           << options.bin_regular << "\n";
+    o << "  bin_dt                  : " << (options.bin_dt == defaults.bin_dt ? " " : " * ")                                     << options.bin_dt << "\n";
+    o << "  sample_dt               : " << (options.sample_dt == defaults.sample_dt ? " " : " * ")                               << options.sample_dt << "\n";
+    o << "  probe_soma_only         : " << (options.probe_soma_only == defaults.probe_soma_only ? " " : " * ")                   << options.probe_soma_only << "\n";
+    o << "  probe_ratio             : " << (options.probe_ratio == defaults.probe_ratio ? " " : " * ")                           << options.probe_ratio << "\n";
+    o << "  trace_prefix            : " << (options.trace_prefix == defaults.trace_prefix ? " " : " * ")                         << options.trace_prefix << "\n";
+    if (options.trace_max_gid) {
+        o << "  trace_max_gid           : " << (options.trace_max_gid.value() == defaults.trace_max_gid.value() ? " " : " * ")   << options.trace_max_gid.value() << "\n";
+    }
+    o << "  trace_format            : " << (options.trace_format == defaults.trace_format ? " " : " * ")                         << options.trace_format << "\n";
+    o << "  spike_file_output       : " << (options.spike_file_output == defaults.spike_file_output ? " " : " * ")               << options.spike_file_output << "\n";
+    o << "  single_file_per_rank    : " << (options.single_file_per_rank == defaults.single_file_per_rank ? " " : " * ")         << options.single_file_per_rank << "\n";
+    o << "  over_write              : " << (options.over_write == defaults.over_write ? " " : " * ")                             << options.over_write << "\n";
+    o << "  output_path             : " << (options.output_path == defaults.output_path ? " " : " * ")                           << options.output_path << "\n";
+    o << "  file_name               : " << (options.file_name == defaults.file_name ? " " : " * ")                               << options.file_name << "\n";
+    o << "  file_extension          : " << (options.file_extension == defaults.file_extension ? " " : " * ")                     << options.file_extension << "\n";
+    o << "  spike_file_input        : " << (options.spike_file_input == defaults.spike_file_input ? " " : " * ")                 << options.spike_file_input << "\n";
+    o << "  input_spike_path        : " << (options.input_spike_path == defaults.input_spike_path ? " " : " * ")                 << options.input_spike_path << "\n";
+    o << "  dry_run_ranks           : " << (options.dry_run_ranks == defaults.dry_run_ranks ? " " : " * ")                       << options.dry_run_ranks << "\n";
+    o << "  profile_only_zero       : " << (options.profile_only_zero == defaults.profile_only_zero ? " " : " * ")               << options.profile_only_zero << "\n";
+    o << "  report_compartments     : " << (options.report_compartments == defaults.report_compartments ? " " : " * ")           << options.report_compartments << "\n";
 
+    o << " \n\n Options marked with * are different from default. \n";
     return o;
 }
 
@@ -384,17 +252,17 @@ std::ostream& operator<<(std::ostream& o, const cl_options& options) {
 ///
 /// Returns a vector of time_type
 
-std::vector<time_type> parse_spike_times_from_stream(std::ifstream & fid) {
-    std::vector<time_type> times;
+std::vector<arb::time_type> parse_spike_times_from_stream(std::ifstream & fid) {
+    std::vector<arb::time_type> times;
     std::string line;
     while (std::getline(fid, line)) {
         std::stringstream s(line);
 
-        time_type t;
+        arb::time_type t;
         s >> t >> std::ws;
 
         if (!s || s.peek() != EOF) {
-            throw std::runtime_error( util::strprintf(
+            throw std::runtime_error(arb::util::strprintf(
                     "Unable to parse spike file on line %d: \"%s\"\n",
                     times.size(), line));
         }
@@ -411,15 +279,15 @@ std::vector<time_type> parse_spike_times_from_stream(std::ifstream & fid) {
 ///
 /// Returns a vector of time_type
 
-std::vector<time_type> get_parsed_spike_times_from_path(arb::util::path path) {
+std::vector<arb::time_type> get_parsed_spike_times_from_path(arb::util::path path) {
     std::ifstream fid(path);
     if (!fid) {
-        throw std::runtime_error(util::strprintf(
+        throw std::runtime_error(arb::util::strprintf(
             "Unable to parse spike file: \"%s\"\n", path.c_str()));
     }
 
     return parse_spike_times_from_stream(fid);
 }
 
-} // namespace io
-} // namespace arb
+} // hippo
+
