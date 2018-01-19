@@ -115,6 +115,43 @@ struct synaps_pars {
     {}
 };
 
+
+// Data structure collecting the parameters needed for Poisson event generator
+struct poisson_event_pars {
+    double rate;
+    double weight;
+    double start;
+
+    poisson_event_pars(double rate, double weight, double start) :
+        rate(rate), weight(weight), start(start)
+    {}
+};
+
+
+// Data structure for collecting all parameters for a cell
+struct cell_pars {
+    unsigned compartments_per_segment;
+    std::string synapse_type;
+    std::string dendrite_mechanism;
+    double dendrite_rL;
+    std::string soma_mechanism;
+    unsigned synapses_per_cell;
+    double spike_threshold;
+
+
+    cell_pars(unsigned compartments_per_segment, std::string synapse_type,
+        std::string dendrite_mechanism, double dendrite_rL, std::string soma_mechanism,
+        unsigned synapses_per_cell, double spike_threshold) :
+        compartments_per_segment(compartments_per_segment),
+        synapse_type(synapse_type),
+        dendrite_mechanism(dendrite_mechanism),
+        dendrite_rL(dendrite_rL),
+        soma_mechanism(soma_mechanism),
+        synapses_per_cell(synapses_per_cell),
+        spike_threshold(spike_threshold)
+    {}
+};
+
 class connection_generator {
 
 public:
@@ -156,6 +193,7 @@ public:
     }
 
     arb::cell_kind get_cell_kind(arb::cell_gid_type gid) const {
+
         EXPECTS(gid < n_cells_);
         arb::cell_kind kind;
         for (auto& it: population_ranges) {
@@ -169,6 +207,9 @@ public:
 
     // Returns a json file with the options for gid
     nlohmann::json const get_cell_opts(arb::cell_gid_type gid) const {
+
+
+
         EXPECTS(gid < n_cells_);
         nlohmann::json options;
 

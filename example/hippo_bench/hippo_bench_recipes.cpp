@@ -31,23 +31,32 @@ cell make_basic_cell(
     const std::string& syn_type,
     RNG& rng)
 {
+    arb_con_gen::cell_pars cell_pars(
+        compartments_per_segment,
+        syn_type,
+        "pas",
+        100.0,
+        "hh",
+        num_synapses,
+        20.0);
+
     arb::cell cell = make_cell(morph, true);
 
     for (auto& segment: cell.segments()) {
-        if (compartments_per_segment!=0) {
+        if (cell_pars.compartments_per_segment!=0) {
             if (cable_segment* cable = segment->as_cable()) {
                 cable->set_compartments(compartments_per_segment);
             }
         }
 
         if (segment->is_dendrite()) {
-            segment->add_mechanism("pas");
-            segment->rL = 100;
+            segment->add_mechanism(cell_pars.dendrite_mechanism);
+            segment->rL = cell_pars.dendrite_rL;
         }
     }
 
-    cell.soma()->add_mechanism("hh");
-    cell.add_detector({0,0}, 20);
+    cell.soma()->add_mechanism(cell_pars.soma_mechanism);
+    cell.add_detector({0,0}, cell_pars.spike_threshold);
 
     auto distribution = std::uniform_real_distribution<float>(0.f, 1.0f);
 
@@ -66,8 +75,8 @@ cell make_basic_cell(
 
     EXPECTS(!terminals.empty());
 
-    arb::mechanism_spec syn_default(syn_type);
-    for (unsigned i=0; i<num_synapses; ++i) {
+    arb::mechanism_spec syn_default(cell_pars.synapse_type);
+    for (unsigned i=0; i<cell_pars.synapses_per_cell; ++i) {
         unsigned id = terminals[i%terminals.size()];
         cell.add_synapse({id, distribution(rng)}, syn_default);
     }
@@ -107,7 +116,6 @@ public:
 
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
-
         auto cell = make_basic_cell(morph, param_.num_compartments, param_.num_synapses,
                         param_.synapse_type, gen);
 
@@ -150,8 +158,8 @@ public:
     }
 
     cell_kind get_cell_kind(cell_gid_type i) const override {
+        return con_gen_.get_cell_kind(i);
 
-        return cell_kind::cable1d_neuron;
     }
 
     cell_size_type num_sources(cell_gid_type i) const override {
