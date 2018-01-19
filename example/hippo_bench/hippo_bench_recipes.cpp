@@ -170,26 +170,18 @@ public:
         }
     }
 
-    // Return two generators attached to the one cell.
+    // Return generators attached to the one cell.
     std::vector<arb::event_generator_ptr> event_generators(cell_gid_type gid) const override {
-        if (gid == ncell_) {
-            return {};
-        }
+
         using RNG = std::mt19937_64;
         using pgen = arb::poisson_generator<RNG>;
 
         auto hz_to_freq = [](double hz) { return hz*1e-3; };
-        time_type t0 = 0;
 
-        std::vector<arb_con_gen::poisson_event_pars> generators;
-
-        generators.push_back({ 500, 0.0008, 0 });
-        generators.push_back({ 20, -0.005, 0 });
+        auto generators = con_gen_.get_cell_poisson_generators(gid);
 
         std::vector<arb::event_generator_ptr> gens;
-
         unsigned idx = 1; // A simple counter to assure unique seed per event generator
-
         for (auto const& pars : generators) {
             gens.push_back(
                 arb::make_event_generator<pgen>(
