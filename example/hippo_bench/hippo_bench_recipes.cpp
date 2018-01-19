@@ -105,7 +105,8 @@ public:
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
 
-        auto cell = make_basic_cell(morph, con_gen_.get_cell_opts(i), gen);
+        const auto& cell_options = con_gen_.get_cell_opts(i);
+        auto cell = make_basic_cell(morph, cell_options, gen);
 
         EXPECTS(cell.num_segments()==cell_segments);
         EXPECTS(cell.synapses().size()==num_targets(i));
@@ -155,7 +156,8 @@ public:
     }
 
     cell_size_type num_targets(cell_gid_type i) const override {
-        return param_.num_synapses;
+        return con_gen_.get_cell_opts(i).synapses_per_cell;
+
     }
 
     cell_size_type num_probes(cell_gid_type i) const override {
@@ -178,7 +180,7 @@ public:
 
         auto hz_to_freq = [](double hz) { return hz*1e-3; };
 
-        auto generators = con_gen_.get_cell_poisson_generators(gid);
+        const auto& generators = con_gen_.get_cell_poisson_generators(gid);
 
         std::vector<arb::event_generator_ptr> gens;
         unsigned idx = 1; // A simple counter to assure unique seed per event generator
@@ -200,43 +202,28 @@ public:
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
-        //// The rss_cell does not have inputs
-        //if (i == ncell_) {
-        //    return conns;
-        //}
-        //auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
-        //auto source_gen = std::mt19937(i*123+457); // ditto
+        const auto connections = con_gen_.synapses_on(i);
+        const auto& cell_options = con_gen_.get_cell_opts(i);
 
-        //std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_-2);
+        unsigned synapse_idx = 0;  // TODOW: We set the number of synapses seperately to the
+        // number of connections
+        if (i == 0) {
+            for (auto& syn_par : connections) {
 
-        //for (unsigned t=0; t<param_.num_synapses; ++t) {
-        //    auto source = source_distribution(source_gen);
-        //    if (source>=i) ++source;
+                conns.push_back(
+                    { { syn_par.gid, 0 }, { i, synapse_idx }, syn_par.weight, syn_par.delay }
+                );
 
-        //    cell_connection cc = draw_connection_params(conn_param_gen);
-        //    cc.source = {source, 0};
-        //    cc.dest = {i, t};
-        //    conns.push_back(cc);
-
-        //    // The rss_cell spikes at t=0, with these connections it looks like
-        //    // (source % 20) == 0 spikes at that moment.
-        //    if (source % 20 == 0) {
-        //        cc.source = {ncell_, 0};
-        //        conns.push_back(cc);
-        //    }
-        //}
-
+                synapse_idx++;
+                if (synapse_idx == cell_options.synapses_per_cell) {
+                    synapse_idx = 0;
+                }
+            }
+        }
         return conns;
     }
 
 protected:
-    template <typename RNG>
-    cell_connection draw_connection_params(RNG& rng) const {
-        std::exponential_distribution<float> delay_dist(delay_distribution_param_);
-        float delay = param_.min_connection_delay_ms + delay_dist(rng);
-        float weight = param_.syn_weight_per_cell/param_.num_synapses;
-        return cell_connection{{0, 0}, {0, 0}, weight, delay};
-    }
 
     cell_gid_type ncell_;
     basic_recipe_param param_;
