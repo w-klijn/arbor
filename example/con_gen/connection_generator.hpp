@@ -80,8 +80,6 @@ struct projection_pars {
         // Sanity checks
         EXPECTS(sd > 0.0);
         EXPECTS(count > 0);
-        EXPECTS(weight_mean > 0);
-        EXPECTS(weight_std > 0);
         EXPECTS(delay_min > 0.9999); // TODO: This a neuroscientific 'fact' not needed for valid functioning
         EXPECTS(delay_per_std > 0.0);
     }
