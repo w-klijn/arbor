@@ -132,9 +132,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
             "o", "ofile",
             "save parameters to json-formatted file <file name>",
             false, "","file name", cmd);
-        TCLAP::ValueArg<uint32_t> ncells_arg(
-            "n", "ncells", "total number of cells in the model",
-            false, defopts.cells, "integer", cmd);
         TCLAP::ValueArg<uint32_t> nsynapses_arg(
             "s", "nsynapses", "number of synapses per cell",
             false, defopts.synapses_per_cell, "integer", cmd);
@@ -210,8 +207,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
                 try {
                     nlohmann::json fopts;
                     fid >> fopts;
-
-                    update_option(options.cells, fopts, "cells");
                     update_option(options.synapses_per_cell, fopts, "synapses");
                     update_option(options.syn_type, fopts, "syn_type");
                     update_option(options.compartments_per_segment, fopts, "compartments");
@@ -259,7 +254,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
             }
         }
 
-        update_option(options.cells, ncells_arg);
         update_option(options.synapses_per_cell, nsynapses_arg);
         update_option(options.syn_type, syntype_arg);
         update_option(options.compartments_per_segment, ncompartments_arg);
@@ -305,7 +299,6 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
             try {
                 nlohmann::json fopts;
 
-                fopts["cells"] = options.cells;
                 fopts["synapses"] = options.synapses_per_cell;
                 fopts["syn_type"] = options.syn_type;
                 fopts["compartments"] = options.compartments_per_segment;
@@ -355,7 +348,7 @@ cl_options read_options(int argc, char** argv, bool allow_write) {
 
 std::ostream& operator<<(std::ostream& o, const cl_options& options) {
     o << "simulation options:\n";
-    o << "  cells                : " << options.cells << "\n";
+
     o << "  compartments/segment : " << options.compartments_per_segment << "\n";
     o << "  synapses/cell        : " << options.synapses_per_cell << "\n";
     o << "  simulation time      : " << options.tfinal << "\n";

@@ -53,10 +53,16 @@ int main(int argc, char** argv) {
     try {
         util::meter_manager meters;
         meters.start();
-
         std::cout << util::mask_stream(global_policy::id()==0);
         // read parameters
         io::cl_options options = io::read_options(argc, argv, global_policy::id()==0);
+
+        // determine what to attach probes to
+        probe_distribution pdist;
+        pdist.proportion = options.probe_ratio;
+        pdist.all_segments = !options.probe_soma_only;
+
+        auto recipe = make_recipe(options, pdist);
 
         // If compiled in dry run mode we have to set up the dry run
         // communicator to simulate the number of ranks that may have been set
@@ -65,10 +71,12 @@ int main(int argc, char** argv) {
             // Dry run mode requires that each rank has the same number of cells.
             // Here we increase the total number of cells if required to ensure
             // that this condition is satisfied.
-            auto cells_per_rank = options.cells/options.dry_run_ranks;
-            if (options.cells % options.dry_run_ranks) {
+
+            auto nr_cells = recipe->num_cells();
+            auto cells_per_rank = nr_cells / options.dry_run_ranks;
+            if (nr_cells % options.dry_run_ranks) {
                 ++cells_per_rank;
-                options.cells = cells_per_rank*options.dry_run_ranks;
+                nr_cells = cells_per_rank*options.dry_run_ranks;
             }
 
             global_policy::set_sizes(options.dry_run_ranks, cells_per_rank);
@@ -81,14 +89,9 @@ int main(int argc, char** argv) {
         nd.num_gpus = hw::num_gpus()>0? 1: 0;
         banner(nd);
 
+
         meters.checkpoint("setup");
 
-        // determine what to attach probes to
-        probe_distribution pdist;
-        pdist.proportion = options.probe_ratio;
-        pdist.all_segments = !options.probe_soma_only;
-
-        auto recipe = make_recipe(options, pdist);
         if (options.report_compartments) {
             report_compartment_stats(*recipe);
         }
@@ -224,7 +227,8 @@ std::unique_ptr<recipe> make_recipe(const io::cl_options& options, const probe_d
         p.input_spike_path = options.input_spike_path;
     }
 
-    return make_hippo_bench_recipe(options.cells, p, pdist);
+
+    return make_hippo_bench_recipe(p, pdist);
 
 }
 

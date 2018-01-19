@@ -74,27 +74,24 @@ cell make_basic_cell(
 
 class hippo_bench_recipe: public recipe {
 public:
-    hippo_bench_recipe(cell_gid_type ncell, basic_recipe_param param,
+    hippo_bench_recipe( basic_recipe_param param,
         probe_distribution pdist = probe_distribution{}):
-        ncell_(ncell), param_(std::move(param)), pdist_(std::move(pdist))
+            param_(std::move(param)), pdist_(std::move(pdist))
     {
-        // Cells are not allowed to connect to themselves; hence there must be least two cells
-        // to build a connected network.
-        if (ncell<2) {
-            throw std::runtime_error("A randomly connected network must have at least 2 cells.");
-        }
+
         con_gen_ = arb_con_gen::connection_generator(con_gen_util::parse_populations_from_path(
             "../populations.json"), con_gen_util::parse_projections_from_path("../projections.json")
         );
 
-
+        ncell_ = con_gen_.num_cells();
         EXPECTS(param_.morphologies.size()>0);
         delay_distribution_param_ = exp_param{param_.mean_connection_delay_ms
                             - param_.min_connection_delay_ms};
     }
 
+
     cell_size_type num_cells() const override {
-        return ncell_ + 1;  // We automatically add a fake cell to each recipe!
+        return ncell_;
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
@@ -252,11 +249,10 @@ protected:
 
 
 std::unique_ptr<recipe> make_hippo_bench_recipe(
-        cell_gid_type ncell,
         basic_recipe_param param,
         probe_distribution pdist)
 {
-    return std::unique_ptr<recipe>(new hippo_bench_recipe(ncell, param, pdist));
+    return std::unique_ptr<recipe>(new hippo_bench_recipe( param, pdist));
 }
 
 } // namespace arb
