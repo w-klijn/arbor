@@ -234,6 +234,8 @@ public:
         return {};
     }
 
+
+    // Return the poisson_generators on this cell
     std::vector<arb_con_gen::poisson_event_pars> const get_cell_poisson_generators(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
 
@@ -265,26 +267,6 @@ public:
         EXPECTS(false);
         return {};
     }
-
-    //// If there are no "poisson_generators" event generators
-    //if (opts.find("poisson_generators") == opts.end()) {
-    //    return {};
-    //}
-
-    //// We need a random number generator
-    //using RNG = std::mt19937_64;
-    //using pgen = arb::poisson_generator<RNG>;
-
-    //auto hz_to_freq = [](double hz) { return hz*1e-3; };
-
-
-    //// a counter needed to assure unique rng seeds per event generator
-    //unsigned idx = 1;
-
-    //std::vector<arb::event_generator_ptr> gens;
-    //for (nlohmann::json::const_iterator it = opts["poisson_generators"].begin();
-    //    it != opts["poisson_generators"].end(); ++it) {
-
 
 
     // Returns the number of synapses on this cell

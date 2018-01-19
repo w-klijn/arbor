@@ -181,11 +181,32 @@ public:
         auto hz_to_freq = [](double hz) { return hz*1e-3; };
         time_type t0 = 0;
 
-        // Define frequencies and weights for the excitatory and inhibitory generators.
-        double lambda_e = hz_to_freq(500);
-        double lambda_i = hz_to_freq(20);
-        double w_e = 0.001;
-        double w_i = -0.005;
+        std::vector<arb_con_gen::poisson_event_pars> generators;
+
+        generators.push_back({ 500, 0.001, 0 });
+        generators.push_back({ 20, -0.005, 0 });
+
+        //generators.push_back({ 500, 0.001, 0 });
+        //generators.push_back({ 20, -0.005, 0 });
+
+        //std::vector<arb::event_generator_ptr> gens;
+        //if (gid == 0) {
+        //    for (auto const& pars : generators) {
+        //        std::cout << pars.rate << "," << pars.weight << ", " << pars.start << "\n";
+
+
+        //    }
+        //}
+        //    gens.push_back(
+        //        arb::make_event_generator<pgen>(
+        //            cell_member_type{ gid,0 }, // Target synapse (gid, local_id).
+        //            hz_to_freq(pars.rate),                   // Weight of events to deliver
+        //            RNG(29562872),         // Random number generator to use
+        //            pars.start,                    // Events start being delivered from this time
+        //            pars.weight));            // Expected frequency (events per ms)
+
+
+        //}
 
         // Make two event generators.
         std::vector<arb::event_generator_ptr> gens;
@@ -194,15 +215,15 @@ public:
         gens.push_back(
             arb::make_event_generator<pgen>(
                 cell_member_type{ 0,0 }, // Target synapse (gid, local_id).
-                w_e,                   // Weight of events to deliver
+                generators[0].weight,                   // Weight of events to deliver
                 RNG(29562872),         // Random number generator to use
                 t0,                    // Events start being delivered from this time
-                lambda_e));            // Expected frequency (events per ms)
+                hz_to_freq(generators[0].rate)));            // Expected frequency (events per ms)
 
                                        // Add inhibitory generator
         gens.push_back(
             arb::make_event_generator<pgen>(
-                cell_member_type{ 0,0 }, w_i, RNG(86543891), t0, lambda_i));
+                cell_member_type{ 0,0 }, generators[1].weight, RNG(86543891), t0, hz_to_freq(generators[1].rate)));
 
         return gens;
     }
