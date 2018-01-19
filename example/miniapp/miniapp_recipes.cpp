@@ -144,6 +144,41 @@ public:
         return {probe_id, (int)kind, cell_probe_address{loc, kind}};
     }
 
+    std::vector<arb::event_generator_ptr> event_generators(cell_gid_type gid) const override {
+
+        using RNG = std::mt19937_64;
+        using pgen = arb::poisson_generator<RNG>;
+
+        auto hz_to_freq = [](double hz) { return hz*1e-3; };
+        time_type t0 = 0;
+
+        // Define frequencies and weights for the excitatory and inhibitory generators.
+        double lambda_e = hz_to_freq(500);
+        double lambda_i = hz_to_freq(20);
+        double w_e = 0.0008;
+        double w_i = -0.005;
+
+        // Make two event generators.
+        std::vector<arb::event_generator_ptr> gens;
+
+        // Add excitatory generator
+        gens.push_back(
+            arb::make_event_generator<pgen>(
+                cell_member_type{ gid,0 }, // Target synapse (gid, local_id).
+                w_e,                   // Weight of events to deliver
+                RNG(gid + 29562872 * 1),         // Random number generator to use
+                t0,                    // Events start being delivered from this time
+                lambda_e));            // Expected frequency (events per ms)
+
+                                       // Add inhibitory generator
+        gens.push_back(
+            arb::make_event_generator<pgen>(
+                cell_member_type{ gid,0 }, w_i, RNG(gid + 29562872 * 2), t0, lambda_i));
+
+        return gens;
+    }
+
+
     cell_kind get_cell_kind(cell_gid_type i) const override {
         // The last 'cell' is a rss_cell with one spike at t=0
         if (i == ncell_) {
@@ -269,31 +304,31 @@ public:
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
-        // The rss_cell does not have inputs
-        if (i == ncell_) {
-            return conns;
-        }
-        auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
-        auto source_gen = std::mt19937(i*123+457); // ditto
+        //// The rss_cell does not have inputs
+        //if (i == ncell_) {
+        //    return conns;
+        //}
+        //auto conn_param_gen = std::mt19937(i); // TODO: replace this with hashing generator...
+        //auto source_gen = std::mt19937(i*123+457); // ditto
 
-        std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_-2);
+        //std::uniform_int_distribution<cell_gid_type> source_distribution(0, ncell_-2);
 
-        for (unsigned t=0; t<param_.num_synapses; ++t) {
-            auto source = source_distribution(source_gen);
-            if (source>=i) ++source;
+        //for (unsigned t=0; t<param_.num_synapses; ++t) {
+        //    auto source = source_distribution(source_gen);
+        //    if (source>=i) ++source;
 
-            cell_connection cc = draw_connection_params(conn_param_gen);
-            cc.source = {source, 0};
-            cc.dest = {i, t};
-            conns.push_back(cc);
+        //    cell_connection cc = draw_connection_params(conn_param_gen);
+        //    cc.source = {source, 0};
+        //    cc.dest = {i, t};
+        //    conns.push_back(cc);
 
-            // The rss_cell spikes at t=0, with these connections it looks like
-            // (source % 20) == 0 spikes at that moment.
-            if (source % 20 == 0) {
-                cc.source = {ncell_, 0};
-                conns.push_back(cc);
-            }
-        }
+        //    // The rss_cell spikes at t=0, with these connections it looks like
+        //    // (source % 20) == 0 spikes at that moment.
+        //    if (source % 20 == 0) {
+        //        cc.source = {ncell_, 0};
+        //        conns.push_back(cc);
+        //    }
+        //}
 
         return conns;
     }
