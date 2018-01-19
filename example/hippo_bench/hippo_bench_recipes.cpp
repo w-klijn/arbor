@@ -183,47 +183,24 @@ public:
 
         std::vector<arb_con_gen::poisson_event_pars> generators;
 
-        generators.push_back({ 500, 0.001, 0 });
+        generators.push_back({ 500, 0.0008, 0 });
         generators.push_back({ 20, -0.005, 0 });
 
-        //generators.push_back({ 500, 0.001, 0 });
-        //generators.push_back({ 20, -0.005, 0 });
-
-        //std::vector<arb::event_generator_ptr> gens;
-        //if (gid == 0) {
-        //    for (auto const& pars : generators) {
-        //        std::cout << pars.rate << "," << pars.weight << ", " << pars.start << "\n";
-
-
-        //    }
-        //}
-        //    gens.push_back(
-        //        arb::make_event_generator<pgen>(
-        //            cell_member_type{ gid,0 }, // Target synapse (gid, local_id).
-        //            hz_to_freq(pars.rate),                   // Weight of events to deliver
-        //            RNG(29562872),         // Random number generator to use
-        //            pars.start,                    // Events start being delivered from this time
-        //            pars.weight));            // Expected frequency (events per ms)
-
-
-        //}
-
-        // Make two event generators.
         std::vector<arb::event_generator_ptr> gens;
 
-        // Add excitatory generator
-        gens.push_back(
-            arb::make_event_generator<pgen>(
-                cell_member_type{ 0,0 }, // Target synapse (gid, local_id).
-                generators[0].weight,                   // Weight of events to deliver
-                RNG(29562872),         // Random number generator to use
-                t0,                    // Events start being delivered from this time
-                hz_to_freq(generators[0].rate)));            // Expected frequency (events per ms)
+        unsigned idx = 1; // A simple counter to assure unique seed per event generator
 
-                                       // Add inhibitory generator
-        gens.push_back(
-            arb::make_event_generator<pgen>(
-                cell_member_type{ 0,0 }, generators[1].weight, RNG(86543891), t0, hz_to_freq(generators[1].rate)));
+        for (auto const& pars : generators) {
+            gens.push_back(
+                arb::make_event_generator<pgen>(
+                    cell_member_type{ gid, 0 }, // Target synapse (gid, local_id).
+                    pars.weight,                   // Weight of events to deliver
+                    RNG(gid + 29562872 * idx),         // Random number generator to use TODOW: We need to work on our rng generation!!!
+                    pars.start,                    // Events start being delivered from this time
+                    hz_to_freq(pars.rate)));            // Expected frequency (events per ms)
+
+            idx++;
+        }
 
         return gens;
     }
