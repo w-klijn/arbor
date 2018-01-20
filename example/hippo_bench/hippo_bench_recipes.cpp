@@ -204,19 +204,19 @@ public:
 
         unsigned synapse_idx = 0;  // TODOW: We set the number of synapses seperately to the
         // number of connections
-        if (i == 0) {
-            for (auto& syn_par : connections) {
 
-                conns.push_back(
-                    { { syn_par.gid, 0 }, { i, synapse_idx }, syn_par.weight, syn_par.delay }
-                );
+        for (auto& syn_par : connections) {
 
-                synapse_idx++;
-                if (synapse_idx == cell_options.synapses_per_cell) {
-                    synapse_idx = 0;
-                }
+            conns.push_back(
+                { { syn_par.gid, 0 }, { i, synapse_idx }, syn_par.weight, syn_par.delay }
+            );
+
+            synapse_idx++;
+            if (synapse_idx == cell_options.synapses_per_cell) {
+                synapse_idx = 0;
             }
         }
+
         return conns;
     }
 

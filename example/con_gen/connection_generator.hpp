@@ -386,15 +386,16 @@ public:
 
             // Now we sample from the pre population based on the x,y location of the
             // post cell
-            auto pre_locations = get_random_locations(gen, post_location,
+            const auto& pre_locations = get_random_locations(gen, post_location,
                 pro_pars.count, sd_x, sd_y, post_pop.periodic);
 
             // Convert to gid and draw the synaptic parameters for each
             // generated location
-            for (auto pre_location : pre_locations) {
+            for (const auto & loc_dist : pre_locations) {
 
                 // If we have Grid type topology
                 // convert the normalized locations to gid
+                const auto & pre_location = loc_dist.first;
                 arb::cell_gid_type gid_pre = arb::cell_gid_type(pre_location.y * pre_pop.y_dim) * pre_pop.x_dim +
                     arb::cell_gid_type(pre_location.x * pre_pop.x_dim);
                 // absolute gid
@@ -403,10 +404,8 @@ public:
                 // TODO: If we have randomly distributed cell, use a quadtree to find the gid
 
                 // Calculate the distance between the pre and post neuron.
-                float distance = std::sqrt(std::pow(pre_location.x * post_location.x, 2) +
-                    std::pow(pre_location.y * post_location.y, 2));
 
-                float delay = distance / pro_pars.delay_per_sd + pro_pars.delay_min;
+                float delay = loc_dist.second * pro_pars.delay_per_sd + pro_pars.delay_min;
 
                 float weight = weight_distr(gen);
                 // Flip the sign of the weight depending if we are incorrect
@@ -429,7 +428,7 @@ private:
 
     // Returns a vector of points from a 2d normal distribution around the
     // supplied 2d location.
-    std::vector<point> get_random_locations(std::mt19937 gen,
+    std::vector<std::pair<point, float>> get_random_locations(std::mt19937 gen,
         point target_location, arb::cell_size_type count,
         float sd_x, float sd_y, bool periodic) const
     {
@@ -437,16 +436,25 @@ private:
         std::normal_distribution<float> distr_x(target_location.x, sd_x);
         std::normal_distribution<float> distr_y(target_location.y, sd_y);
 
+        float mean_sd = (sd_x + sd_y) / 2.0;
+
         //*********************************************************
         // now draw normal distributed and convert to gid
         // we have the amount of connections we need
-        std::vector<point> connections;
+        std::vector<std::pair<point, float>> connections;
 
         for (arb::cell_gid_type idx = 0; idx < count; ++idx) {
 
             // draw the locations
             float x_source = distr_x(gen);
             float y_source = distr_y(gen);
+
+            // We need the distance between the points to calculate the delay.
+            // This is calculated easy before periodization of the locations
+            // TODOW: With the two sd different this
+            float weighted_distance = std::sqrt(
+                std::pow(target_location.x - x_source , 2) +
+                std::pow(target_location.y - y_source , 2)) / mean_sd;
 
             if (periodic) {
                 // Todo: add non-periodic borders
@@ -463,7 +471,7 @@ private:
                     continue;
                 }
             }
-            connections.push_back({ x_source , y_source });
+            connections.push_back({ {x_source , y_source}, weighted_distance });
         }
 
         return connections;
