@@ -17,6 +17,7 @@
 #include <random>
 #include <util/debug.hpp>
 #include <json/json.hpp>
+#include <recipe.hpp>
 
 namespace arb_con_gen {
 
@@ -333,11 +334,11 @@ public:
     }
 
     // Returns a vector of all synaptic parameters sets for this gid
-    std::vector<synaps_pars> synapses_on(arb::cell_gid_type gid) const {
+    std::vector<arb::cell_connection> synapses_on(arb::cell_gid_type gid) const {
         std::mt19937 gen;
         gen.seed(gid);
 
-        std::vector<synaps_pars> connections;
+        std::vector<arb::cell_connection> connections;
         for (auto project : connectome_) {
 
             // Sanity check that the populations exist
@@ -411,7 +412,8 @@ public:
                 // Flip the sign of the weight depending if we are incorrect
                 weight = (weight_sign * weight) < 0?  -weight: weight;
 
-                connections.push_back({ gid_pre, weight,  delay });
+                connections.push_back({ { gid, 0 }, { gid_pre, 0 },
+                                    weight, delay });
             }
         }
 

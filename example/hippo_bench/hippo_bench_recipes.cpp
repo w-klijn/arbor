@@ -199,7 +199,7 @@ public:
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
-        const auto connections = con_gen_.synapses_on(i);
+        auto connections = con_gen_.synapses_on(i);
         const auto& cell_options = con_gen_.get_cell_opts(i);
 
         unsigned synapse_idx = 0;  // TODOW: We set the number of synapses seperately to the
@@ -207,9 +207,7 @@ public:
 
         for (auto& syn_par : connections) {
 
-            conns.push_back(
-                { { syn_par.gid, 0 }, { i, synapse_idx }, syn_par.weight, syn_par.delay }
-            );
+            syn_par.dest.gid = synapse_idx;
 
             synapse_idx++;
             if (synapse_idx == cell_options.synapses_per_cell) {

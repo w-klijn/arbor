@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     else {
         gids = con_gen_util::default_gids();
     }
-    std::cout << "Debug 3" << std::endl;
+
     // The connection generator
     arb_con_gen::connection_generator gen(populations, connectome);
 
@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
             std::cout << gid << std::endl;
             auto synapses = gen.synapses_on(gid);
             for (auto synapse : synapses) {
-                outfile << synapse.gid << "," << synapse.weight << "," << synapse.delay << "\n";
+                outfile << synapse.dest.gid << "," << synapse.weight << "," << synapse.delay << "\n";
             }
         }
     }
