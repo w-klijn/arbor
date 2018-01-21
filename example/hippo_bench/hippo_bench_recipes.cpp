@@ -202,12 +202,9 @@ public:
         auto connections = con_gen_.synapses_on(i);
         const auto& cell_options = con_gen_.get_cell_opts(i);
 
-        unsigned synapse_idx = 0;  // TODOW: We set the number of synapses seperately to the
-        // number of connections
-
+        unsigned synapse_idx = 0;
 
         for (auto& syn_par : connections) {
-
             syn_par.dest.gid = synapse_idx;
 
             synapse_idx++;
@@ -215,12 +212,6 @@ public:
                 synapse_idx = 0;
             }
         }
-
-        if (i == 0) {
-            std::cout << "number of connections: " << connections.size() << "\n";
-
-        }
-
 
         return conns;
     }

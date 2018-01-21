@@ -267,38 +267,31 @@ public:
 
         std::mt19937 gen;
         gen.seed(gid);
-
-        arb::cell_size_type synapse_count = 0;
-
-        // TODO: THis is copy paste from synapses_on
+        unsigned synapse_count = 0;
         for (auto project : connectome_) {
+            // Sanity check that the populations exist
+            EXPECTS(populations_.count(project.pre_name));
+            EXPECTS(populations_.count(project.post_name));
+
             // Shorthand for the pre and post populations
             auto pre_pop = populations_.at(project.pre_name);
             auto post_pop = populations_.at(project.post_name);
             auto pro_pars = project.pars;
 
-            // Distribution to draw the weights
-            std::normal_distribution<float> weight_distr(pro_pars.weight_mean, pro_pars.weight_sd);
-
-            // Used to assure correct weight sign
-            //float weight_sign = arb::math::signum(pro_pars.weight_mean);
-
             // Check if this gid receives connections via this projection
             // TODO: Replace with the fancy in range function we have somewhere in the utils
-            if (gid < post_pop.start_index || gid >(post_pop.start_index + post_pop.n_cells)) {
+            if (gid < post_pop.start_index || gid >= (post_pop.end_index)) {
                 continue;
             }
 
-            // Convert to the local gid of the post neuron
-            auto pop_local_gid = gid - post_pop.start_index;
 
-            // Convert this to a normalized location
+            // Convert the gid to a index location on a grid
             point post_location = {
-                float(pop_local_gid % post_pop.x_dim) / post_pop.x_dim,
-                float(pop_local_gid / post_pop.y_dim) / post_pop.y_dim };
+                float((gid - post_pop.start_index) % post_pop.x_dim) / post_pop.x_dim,
+                float((gid - post_pop.start_index) / post_pop.y_dim) / post_pop.y_dim };
 
             // If we have non square sides we need to correct the stdev to get
-            // circular projections!
+            // circular projections! We do all c
             float sd_x = pro_pars.sd;
             float sd_y = pro_pars.sd;
             if (post_pop.x_dim != post_pop.y_dim) {
@@ -312,12 +305,30 @@ public:
                 }
             }
 
-            // Now we sample from the pre population based on the x,y location of the
-            // post cell
-            auto pre_locations = get_random_locations(gen, post_location,
-                pro_pars.count, sd_x, sd_y, post_pop.periodic);
+            // The distribution for these locations
+            std::normal_distribution<float> distr_x(post_location.x, sd_x);
+            std::normal_distribution<float> distr_y(post_location.y, sd_y);
 
-            synapse_count += pre_locations.size();
+            // Start generating the connections
+            for (arb::cell_gid_type idx = 0; idx < pro_pars.count; ++idx) {
+                // draw the locations
+                float x_source = distr_x(gen);
+                float y_source = distr_y(gen);
+                if (post_pop.periodic) {
+                    // Todo: add non-periodic borders
+                    // normalize: move all values between [0.0, 1.0)
+                    x_source -= int(std::floor(x_source));
+                    y_source -= int(std::floor(y_source));
+                }
+                else {
+                    // If we have non periodic borders this connection is not
+                    // created (akin to a in vitro slice) if outside of [0, 1.0)
+                    if (x_source < 0 || x_source >= 1.0 || y_source < 0 || y_source >= 1.0) {
+                        continue;
+                    }
+                }
+                synapse_count++;
+            }
         }
 
         return synapse_count;
@@ -340,42 +351,25 @@ public:
             auto post_pop = populations_.at(project.post_name);
             auto pro_pars = project.pars;
 
-            // Distribution to draw the weights
-            std::normal_distribution<float> weight_distr(pro_pars.weight_mean, pro_pars.weight_sd);
-
-            // Used to assure correct weight sign
-            float weight_sign = arb::math::signum(pro_pars.weight_mean);
-
             // Check if this gid receives connections via this projection
             // TODO: Replace with the fancy in range function we have somewhere in the utils
             if (gid < post_pop.start_index || gid >= (post_pop.end_index)) {
                 continue;
             }
 
-            //if (gid == 0) {
+            // Distribution to draw the weights
+            std::normal_distribution<float> weight_distr(pro_pars.weight_mean, pro_pars.weight_sd);
 
+            // Weight sign
+            float weight_sign = arb::math::signum(pro_pars.weight_mean);
 
-            //    std::cout << "Pr_idx: " << project.pre_name << "\n";
-
-            //    std::cout << "pre_pop: " << pre_pop.name << "\n";
-            //    std::cout << "count: " << populations_.size() << "\n";
-            //    for (auto pop : populations_) {
-            //        std::cout << "first: " << pop.first << "," << pop.second.name << "," << pro_pars.count << "\n";
-            //    }
-
-            //}
-
-
-            // Convert to the local gid of the post neuron
-            auto pop_local_gid = gid - post_pop.start_index;
-
-            // Convert this to a normalized location
+            // Convert the gid to a index location on a grid
             point post_location = {
-                float(pop_local_gid % post_pop.x_dim) / post_pop.x_dim,
-                float(pop_local_gid / post_pop.y_dim) / post_pop.y_dim};
+                float((gid - post_pop.start_index) % post_pop.x_dim) / post_pop.x_dim,
+                float((gid - post_pop.start_index) / post_pop.y_dim) / post_pop.y_dim};
 
             // If we have non square sides we need to correct the stdev to get
-            // circular projections!
+            // circular projections! We do all c
             float sd_x = pro_pars.sd;
             float sd_y = pro_pars.sd;
             if (post_pop.x_dim != post_pop.y_dim) {
@@ -389,36 +383,52 @@ public:
                 }
             }
 
+            // The distribution for these locations
+            std::normal_distribution<float> distr_x(post_location.x, sd_x);
+            std::normal_distribution<float> distr_y(post_location.y, sd_y);
+            float mean_sd = (sd_x + sd_y) / 2.0;
 
-            // Now we sample from the pre population based on the x,y location of the
-            // post cell
-            const auto& pre_locations = get_random_locations(gen, post_location,
-                pro_pars.count, sd_x, sd_y, post_pop.periodic);
+            // Start generating the connections
+            for (arb::cell_gid_type idx = 0; idx < pro_pars.count; ++idx) {
+                // draw the locations
+                float x_source = distr_x(gen);
+                float y_source = distr_y(gen);
 
-            // Convert to gid and draw the synaptic parameters for each
-            // generated location
-            for (const auto & loc_dist : pre_locations) {
+                // We need the distance between the points to calculate the delay.
+                // This is calculated easy before periodization of the locations
+                // TODOW: With the two sd different this
+                float weighted_distance = std::sqrt(
+                    std::pow(post_location.x - x_source, 2) +
+                    std::pow(post_location.y - y_source, 2)) / mean_sd;
 
-                // If we have Grid type topology
-                // convert the normalized locations to gid
-                const auto & pre_location = loc_dist.first;
-                arb::cell_gid_type gid_pre = arb::cell_gid_type(pre_location.y * pre_pop.y_dim) * pre_pop.x_dim +
-                    arb::cell_gid_type(pre_location.x * pre_pop.x_dim);
+                if (post_pop.periodic) {
+                    // Todo: add non-periodic borders
+                    // normalize: move all values between [0.0, 1.0)
+                    x_source -= int(std::floor(x_source));
+                    y_source -= int(std::floor(y_source));
+                }
+                else {
+                    // If we have non periodic borders this connection is not
+                    // created (akin to a in vitro slice) if outside of [0, 1.0)
+                    if (x_source < 0 || x_source >= 1.0 || y_source < 0 || y_source >= 1.0) {
+                        continue;
+                    }
+                }
+
+                arb::cell_gid_type gid_pre = arb::cell_gid_type(y_source * pre_pop.y_dim) * pre_pop.x_dim +
+                    arb::cell_gid_type(x_source * pre_pop.x_dim);
                 // absolute gid
                 gid_pre += pre_pop.start_index;
 
                 // TODO: If we have randomly distributed cell, use a quadtree to find the gid
 
-                // Calculate the distance between the pre and post neuron.
-
-                float delay = loc_dist.second * pro_pars.delay_per_sd + pro_pars.delay_min;
-
+                float delay = weighted_distance * pro_pars.delay_per_sd + pro_pars.delay_min;
                 float weight = weight_distr(gen);
+
                 // Flip the sign of the weight depending if we are incorrect
                 weight = (weight_sign * weight) < 0?  -weight: weight;
 
-                connections.push_back({ { gid, 0 }, { gid_pre, 0 },
-                                    weight, delay });
+                connections.push_back({ { gid, 0 }, { gid_pre, 0 }, weight, delay });
             }
         }
 
@@ -432,71 +442,6 @@ private:
         float y;
     };
 
-
-    // Returns a vector of points from a 2d normal distribution around the
-    // supplied 2d location.
-    std::vector<std::pair<point, float>> get_random_locations(std::mt19937 gen,
-        point target_location, arb::cell_size_type count,
-        float sd_x, float sd_y, bool periodic) const
-    {
-        // Generate the distribution for these locations
-        std::normal_distribution<float> distr_x(target_location.x, sd_x);
-        std::normal_distribution<float> distr_y(target_location.y, sd_y);
-
-        float mean_sd = (sd_x + sd_y) / 2.0;
-
-        //*********************************************************
-        // now draw normal distributed and convert to gid
-        // we have the amount of connections we need
-        std::vector<std::pair<point, float>> connections;
-
-        for (arb::cell_gid_type idx = 0; idx < count; ++idx) {
-
-            // draw the locations
-            float x_source = distr_x(gen);
-            float y_source = distr_y(gen);
-
-            // We need the distance between the points to calculate the delay.
-            // This is calculated easy before periodization of the locations
-            // TODOW: With the two sd different this
-            float weighted_distance = std::sqrt(
-                std::pow(target_location.x - x_source , 2) +
-                std::pow(target_location.y - y_source , 2)) / mean_sd;
-
-            if (periodic) {
-                // Todo: add non-periodic borders
-                // normalize: move all values between [0.0, 1.0)
-                // int(floor(-1.1)) = -2  ---> -1.1 - -2 = 0.9
-                // int(floor(3.4)) = 3    ---> 3.4  -  3 = 0.4
-                x_source -= int(std::floor(x_source));
-                y_source -= int(std::floor(y_source));
-            }
-            else {
-                // If we have non periodic borders this connection is not
-                // created (akin to a in vitro slice) if outside of [0, 1.0)
-                if (x_source < 0 || x_source >= 1.0 || y_source < 0 || y_source >= 1.0) {
-                    continue;
-                }
-            }
-            connections.push_back({ {x_source , y_source}, weighted_distance });
-        }
-
-        return connections;
-    }
-
-    float distance(const point& p1, const point& p2) {
-        return std::sqrt(arb::math::square(p1.x - p2.x) + arb::math::square(p1.y - p2.y));
-    }
-
-
-    struct population_indexed : public population {
-        arb::cell_gid_type start_index;
-
-        population_indexed(arb::cell_size_type x_dim, arb::cell_size_type y_dim, bool periodic,
-            arb::cell_kind kind, nlohmann::json cell_opts, arb::cell_gid_type start_index) :
-            population("", x_dim, y_dim, periodic, kind, cell_opts), start_index(start_index)
-        {}
-    };
 
     struct population_instantiated : public population {
         arb::cell_gid_type start_index;
