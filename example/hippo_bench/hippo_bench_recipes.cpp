@@ -97,13 +97,20 @@ public:
     util::unique_any get_cell_description(cell_gid_type i) const override {
         // The last 'cell' is a spike source cell. Either a regular spiking
         // or a spikes from file.
+
+        //arb_con_gen::cell_pars
+
+        //any_cast<arb_con_gen::cell_pars>(&c)
+
         auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
 
         const auto& morph = get_morphology(i);
         unsigned cell_segments = morph.components();
+        auto cell_options = con_gen_.get_cell_opts(i);
+        auto cell_ptr = arb::util::any_cast<arb_con_gen::cell_pars>(&cell_options);
 
-        const auto& cell_options = con_gen_.get_cell_opts(i);
-        auto cell = make_basic_cell(morph, cell_options, gen);
+
+        auto cell = make_basic_cell(morph, *cell_ptr, gen);
 
         EXPECTS(cell.num_segments()==cell_segments);
         EXPECTS(cell.synapses().size()==num_targets(i));
@@ -153,8 +160,10 @@ public:
     }
 
     cell_size_type num_targets(cell_gid_type i) const override {
-        return con_gen_.get_cell_opts(i).synapses_per_cell;
+        auto cell_options = con_gen_.get_cell_opts(i);
+        auto cell_ptr = arb::util::any_cast<arb_con_gen::cell_pars>(&cell_options);
 
+        return cell_ptr->synapses_per_cell;
     }
 
     cell_size_type num_probes(cell_gid_type i) const override {
@@ -199,16 +208,17 @@ public:
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
         std::vector<cell_connection> conns;
 
+        auto cell_options = con_gen_.get_cell_opts(i);
+        auto cell_ptr = arb::util::any_cast<arb_con_gen::cell_pars>(&cell_options);
+
         auto connections = con_gen_.synapses_on(i);
-        const auto& cell_options = con_gen_.get_cell_opts(i);
 
         unsigned synapse_idx = 0;
-
         for (auto& syn_par : connections) {
             syn_par.dest.gid = synapse_idx;
 
             synapse_idx++;
-            if (synapse_idx == cell_options.synapses_per_cell) {
+            if (synapse_idx == cell_ptr->synapses_per_cell) {
                 synapse_idx = 0;
             }
         }

@@ -18,6 +18,7 @@
 #include <util/debug.hpp>
 #include <json/json.hpp>
 #include <recipe.hpp>
+#include <util/unique_any.hpp>
 
 namespace arb_con_gen {
 
@@ -204,7 +205,7 @@ public:
 
 
     // Returns a struct with the cell parameters
-    arb_con_gen::cell_pars const get_cell_opts(arb::cell_gid_type gid) const {
+    arb::util::unique_any get_cell_opts(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
         for (const auto& pop : populations_) {
             if (gid >= pop.second.start_index && gid < pop.second.end_index) {
@@ -218,7 +219,9 @@ public:
                     cell_pars_json["soma_mechanism"],
                     cell_pars_json["synapses_per_cell"],
                     cell_pars_json["spike_threshold"]);
-                return pars;
+
+
+                return arb::util::unique_any(std::move(pars));
             }
         }
 
