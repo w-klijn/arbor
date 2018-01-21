@@ -455,7 +455,7 @@ public:
                 // Flip the sign of the weight depending if we are incorrect
                 weight = (weight_sign * weight) < 0?  -weight: weight;
 
-                connections.push_back({ { gid, 0 }, { gid_pre, 0 }, weight, delay });
+                connections.push_back({ { gid_pre, 0 }, { gid , 0 }, weight, delay });
             }
         }
 

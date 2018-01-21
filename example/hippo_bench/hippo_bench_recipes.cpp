@@ -210,7 +210,6 @@ public:
     }
 
     std::vector<cell_connection> connections_on(cell_gid_type i) const override {
-        std::vector<cell_connection> conns;
 
         auto cell_options = con_gen_.get_cell_opts(i);
         auto cell_ptr = arb::util::any_cast<arb_con_gen::cell_pars>(&cell_options);
@@ -219,7 +218,7 @@ public:
 
         unsigned synapse_idx = 0;
         for (auto& syn_par : connections) {
-            syn_par.dest.gid = synapse_idx;
+            syn_par.dest.index = synapse_idx;
 
             synapse_idx++;
             if (synapse_idx == cell_ptr->synapses_per_cell) {
@@ -227,7 +226,7 @@ public:
             }
         }
 
-        return conns;
+        return connections;
     }
 
 protected:
