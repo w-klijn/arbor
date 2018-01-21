@@ -19,6 +19,7 @@
 #include <json/json.hpp>
 #include <recipe.hpp>
 #include <util/unique_any.hpp>
+#include <ipss_cell_description.hpp>
 
 namespace arb_con_gen {
 
@@ -209,19 +210,42 @@ public:
         EXPECTS(gid < n_cells_);
         for (const auto& pop : populations_) {
             if (gid >= pop.second.start_index && gid < pop.second.end_index) {
-                auto const& cell_pars_json = pop.second.cell_opts;
 
-                cell_pars pars(
-                    cell_pars_json["compartments_per_segment"],
-                    cell_pars_json["synapse_type"],
-                    cell_pars_json["dendrite_mechanism"],
-                    cell_pars_json["dendrite_rL"],
-                    cell_pars_json["soma_mechanism"],
-                    cell_pars_json["synapses_per_cell"],
-                    cell_pars_json["spike_threshold"]);
+                if (get_cell_kind(gid) == arb::cell_kind::cable1d_neuron)
+                {
+                    auto const& cell_pars_json = pop.second.cell_opts;
+                    cell_pars pars(
+                        cell_pars_json["compartments_per_segment"],
+                        cell_pars_json["synapse_type"],
+                        cell_pars_json["dendrite_mechanism"],
+                        cell_pars_json["dendrite_rL"],
+                        cell_pars_json["soma_mechanism"],
+                        cell_pars_json["synapses_per_cell"],
+                        cell_pars_json["spike_threshold"]);
 
 
-                return arb::util::unique_any(std::move(pars));
+                    return arb::util::unique_any(std::move(pars));
+                }
+                else if (get_cell_kind(gid) == arb::cell_kind::inhomogeneous_poisson_spike_source) {
+                    auto const& cell_pars_json = pop.second.cell_opts;
+
+                    std::vector<std::pair<arb::time_type, double>> rates_per_time;
+                    auto times = cell_pars_json["times"];
+                    auto rates = cell_pars_json["rates"];
+                    EXPECTS(times.size() == rates.size());
+                    for (unsigned idx = 0; idx < times.size(); ++idx) {
+                        rates_per_time.push_back({ times[idx], rates[idx] });
+                    }
+
+                    auto descr = arb::ipss_cell_description(
+                        cell_pars_json["start_time"],
+                        cell_pars_json["stop_time"],
+                        cell_pars_json["sample_delta"],
+                        rates_per_time,
+                        cell_pars_json["interpolate"]);
+
+                    return arb::util::unique_any(std::move(descr));
+                }
             }
         }
 

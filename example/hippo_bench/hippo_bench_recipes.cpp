@@ -95,28 +95,32 @@ public:
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
-        // The last 'cell' is a spike source cell. Either a regular spiking
-        // or a spikes from file.
-
-        //arb_con_gen::cell_pars
-
-        //any_cast<arb_con_gen::cell_pars>(&c)
-
         auto gen = std::mt19937(i); // TODO: replace this with hashing generator...
 
-        const auto& morph = get_morphology(i);
-        unsigned cell_segments = morph.components();
-        auto cell_options = con_gen_.get_cell_opts(i);
-        auto cell_ptr = arb::util::any_cast<arb_con_gen::cell_pars>(&cell_options);
+        auto kind = con_gen_.get_cell_kind(i);
+
+        if (kind == arb::cell_kind::cable1d_neuron) {
+
+            const auto& morph = get_morphology(i);
+            unsigned cell_segments = morph.components();
+            auto cell_options = con_gen_.get_cell_opts(i);
+            auto cell_ptr = arb::util::any_cast<arb_con_gen::cell_pars>(&cell_options);
 
 
-        auto cell = make_basic_cell(morph, *cell_ptr, gen);
+            auto cell = make_basic_cell(morph, *cell_ptr, gen);
 
-        EXPECTS(cell.num_segments()==cell_segments);
-        EXPECTS(cell.synapses().size()==num_targets(i));
-        EXPECTS(cell.detectors().size()==num_sources(i));
+            EXPECTS(cell.num_segments() == cell_segments);
+            EXPECTS(cell.synapses().size() == num_targets(i));
+            EXPECTS(cell.detectors().size() == num_sources(i));
 
-        return util::unique_any(std::move(cell));
+
+            return util::unique_any(std::move(cell));
+        }
+        else if (kind == arb::cell_kind::inhomogeneous_poisson_spike_source){
+            return con_gen_.get_cell_opts(i);
+        }
+        EXPECTS(false);
+        return {};
     }
 
     probe_info get_probe(cell_member_type probe_id) const override {
