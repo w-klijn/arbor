@@ -87,18 +87,18 @@ struct projection_pars {
 };
 
 // Helper struct to collect some parameters together for creating projections
-// -pre_idx    The index in the population list that is pre synaptic for this
+// -pre_name    The index in the population list that is pre synaptic for this
 //             projection
-// -post_idx   The index in the population list that is post synaptic for this
+// -post_name   The index in the population list that is post synaptic for this
 //             projection
 // -pars       Parameters used to generate the synapses for this connection
 struct projection {
-    std::string pre_idx;
-    std::string post_idx;
+    std::string pre_name;
+    std::string post_name;
     projection_pars pars;
 
     projection(std::string pre_population, std::string post_population, projection_pars pars) :
-        pre_idx(pre_population), post_idx(post_population), pars(pars)
+        pre_name(pre_population), post_name(post_population), pars(pars)
     {}
 };
 
@@ -172,13 +172,7 @@ public:
         // Create the local populations with start index set
         for (auto pop : populations) {
 
-            populations_.insert({ pop.name, population_indexed(
-                pop.x_dim, pop.y_dim, pop.periodic, pop.kind, pop.cell_opts, gid_idx) });
-
-            population_ranges.push_back(
-                std::tuple<arb::cell_gid_type, arb::cell_gid_type, std::string>(
-                        gid_idx, gid_idx + pop.n_cells, pop.name ));
-
+            populations_.insert({ pop.name, {pop, gid_idx } });
             gid_idx += pop.n_cells;
         }
 
@@ -200,9 +194,9 @@ public:
 
         EXPECTS(gid < n_cells_);
         arb::cell_kind kind;
-        for (auto& it: population_ranges) {
-            if (gid >= std::get<0>(it) && gid < std::get<1>(it))
-                kind = populations_.at(std::get<2>(it)).kind;
+        for (const auto& pop: populations_) {
+            if (gid >= pop.second.start_index && gid < pop.second.end_index)
+                kind = pop.second.kind;
         }
 
         return kind;
@@ -212,10 +206,9 @@ public:
     // Returns a struct with the cell parameters
     arb_con_gen::cell_pars const get_cell_opts(arb::cell_gid_type gid) const {
         EXPECTS(gid < n_cells_);
-
-        for (auto& it : population_ranges) {
-            if (gid >= std::get<0>(it) && gid < std::get<1>(it)) {
-                auto const& cell_pars_json = populations_.at(std::get<2>(it)).cell_opts;
+        for (const auto& pop : populations_) {
+            if (gid >= pop.second.start_index && gid < pop.second.end_index) {
+                auto const& cell_pars_json = pop.second.cell_opts;
 
                 cell_pars pars(
                     cell_pars_json["compartments_per_segment"],
@@ -231,6 +224,7 @@ public:
 
         EXPECTS(false);
         return {};
+
     }
 
 
@@ -240,11 +234,11 @@ public:
 
         std::vector<arb_con_gen::poisson_event_pars> generator_pars;
 
-        for (auto& it : population_ranges) {
+        for (const auto& pop : populations_) {
             // Find the matching population
-            if (gid >= std::get<0>(it) && gid < std::get<1>(it)) {
+            if (gid >= pop.second.start_index && gid < pop.second.end_index) {
                 // Json description
-                auto const& cell_pars_json = populations_.at(std::get<2>(it)).cell_opts;
+                auto const& cell_pars_json = pop.second.cell_opts;
 
                 // If no generators declared
                 if (cell_pars_json.find("poisson_generators") == cell_pars_json.end()) {
@@ -278,13 +272,9 @@ public:
 
         // TODO: THis is copy paste from synapses_on
         for (auto project : connectome_) {
-            // Sanity check that the populations exist
-            EXPECTS(populations_.count(project.pre_idx));
-            EXPECTS(populations_.count(project.post_idx));
-
             // Shorthand for the pre and post populations
-            auto pre_pop = populations_.at(project.pre_idx);
-            auto post_pop = populations_.at(project.post_idx);
+            auto pre_pop = populations_.at(project.pre_name);
+            auto post_pop = populations_.at(project.post_name);
             auto pro_pars = project.pars;
 
             // Distribution to draw the weights
@@ -339,15 +329,15 @@ public:
         gen.seed(gid);
 
         std::vector<arb::cell_connection> connections;
+        unsigned idx_projection = 0;
         for (auto project : connectome_) {
-
             // Sanity check that the populations exist
-            EXPECTS(populations_.count(project.pre_idx));
-            EXPECTS(populations_.count(project.post_idx));
+            EXPECTS(populations_.count(project.pre_name));
+            EXPECTS(populations_.count(project.post_name));
 
             // Shorthand for the pre and post populations
-            auto pre_pop = populations_.at(project.pre_idx);
-            auto post_pop = populations_.at(project.post_idx);
+            auto pre_pop = populations_.at(project.pre_name);
+            auto post_pop = populations_.at(project.post_name);
             auto pro_pars = project.pars;
 
             // Distribution to draw the weights
@@ -358,9 +348,23 @@ public:
 
             // Check if this gid receives connections via this projection
             // TODO: Replace with the fancy in range function we have somewhere in the utils
-            if (gid < post_pop.start_index || gid >= (post_pop.start_index + post_pop.n_cells)) {
+            if (gid < post_pop.start_index || gid >= (post_pop.end_index)) {
                 continue;
             }
+
+            //if (gid == 0) {
+
+
+            //    std::cout << "Pr_idx: " << project.pre_name << "\n";
+
+            //    std::cout << "pre_pop: " << pre_pop.name << "\n";
+            //    std::cout << "count: " << populations_.size() << "\n";
+            //    for (auto pop : populations_) {
+            //        std::cout << "first: " << pop.first << "," << pop.second.name << "," << pro_pars.count << "\n";
+            //    }
+
+            //}
+
 
             // Convert to the local gid of the post neuron
             auto pop_local_gid = gid - post_pop.start_index;
@@ -384,6 +388,7 @@ public:
                     sd_y *= ratio;
                 }
             }
+
 
             // Now we sample from the pre population based on the x,y location of the
             // post cell
@@ -493,14 +498,20 @@ private:
         {}
     };
 
-    std::map<std::string, population_indexed> populations_;
+    struct population_instantiated : public population {
+        arb::cell_gid_type start_index;
+        arb::cell_gid_type end_index;
+
+        population_instantiated(population pop, arb::cell_gid_type start_index) :
+            population(pop), start_index(start_index), end_index(start_index + pop.n_cells )
+        {}
+    };
+
+    std::map<std::string, population_instantiated> populations_;
     std::vector<projection> connectome_;
 
     // Number of cells in this connection class
     arb::cell_size_type n_cells_;
-
-    // TODO convert to span
-    std::vector<std::tuple<arb::cell_gid_type, arb::cell_gid_type, std::string>> population_ranges;
 
 };
 

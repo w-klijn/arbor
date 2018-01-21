@@ -205,6 +205,7 @@ public:
         unsigned synapse_idx = 0;  // TODOW: We set the number of synapses seperately to the
         // number of connections
 
+
         for (auto& syn_par : connections) {
 
             syn_par.dest.gid = synapse_idx;
@@ -214,6 +215,12 @@ public:
                 synapse_idx = 0;
             }
         }
+
+        if (i == 0) {
+            std::cout << "number of connections: " << connections.size() << "\n";
+
+        }
+
 
         return conns;
     }
