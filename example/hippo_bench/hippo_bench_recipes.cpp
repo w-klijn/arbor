@@ -45,6 +45,7 @@ cell make_basic_cell(
     }
 
     cell.soma()->add_mechanism(cell_pars.soma_mechanism);
+    cell.set_resting_potential(cell_pars.start_potential);
     cell.add_detector({0,0}, cell_pars.spike_threshold);
 
     auto distribution = std::uniform_real_distribution<float>(0.f, 1.0f);

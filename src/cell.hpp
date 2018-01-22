@@ -196,6 +196,17 @@ public:
         return spike_detectors_;
     }
 
+    /////////////////
+    // Other parameters
+    ////////////////
+    void  set_resting_potential(double pot) {
+        resting_potential_ = pot;
+    }
+
+    double  get_resting_potential() {
+        return resting_potential_;
+    }
+
 private:
     // storage for connections
     std::vector<index_type> parents_;
@@ -211,6 +222,9 @@ private:
 
     // the sensors
     std::vector<detector_instance> spike_detectors_;
+
+    // Resting potential
+    double resting_potential_;
 };
 
 // Checks that two cells have the same

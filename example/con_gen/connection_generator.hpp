@@ -138,18 +138,20 @@ struct cell_pars {
     std::string soma_mechanism;
     unsigned synapses_per_cell;
     double spike_threshold;
+    double start_potential;
 
 
     cell_pars(unsigned compartments_per_segment, std::string synapse_type,
         std::string dendrite_mechanism, double dendrite_rL, std::string soma_mechanism,
-        unsigned synapses_per_cell, double spike_threshold) :
+        unsigned synapses_per_cell, double spike_threshold, double start_potential) :
         compartments_per_segment(compartments_per_segment),
         synapse_type(synapse_type),
         dendrite_mechanism(dendrite_mechanism),
         dendrite_rL(dendrite_rL),
         soma_mechanism(soma_mechanism),
         synapses_per_cell(synapses_per_cell),
-        spike_threshold(spike_threshold)
+        spike_threshold(spike_threshold),
+        start_potential(start_potential)
     {}
 
     // Needed to suppress warnings, but should never be called
@@ -221,7 +223,8 @@ public:
                         cell_pars_json["dendrite_rL"],
                         cell_pars_json["soma_mechanism"],
                         cell_pars_json["synapses_per_cell"],
-                        cell_pars_json["spike_threshold"]);
+                        cell_pars_json["spike_threshold"],
+                        cell_pars_json["start_potential"]);
 
 
                     return arb::util::unique_any(std::move(pars));
