@@ -650,10 +650,8 @@ void fvm_multicell<Backend>::initialize(
 
     // initialize storage from total compartment count
     current_ = array(ncomp, 0);
+    voltage_ = array(ncomp, resting_potential_);
 
-    // TODOW: for now use the resting potential of the first neuron.
-    //        We might want to randomize at a later stage.
-    voltage_ = array(ncomp, cells[0].get_resting_potential());
     cv_to_cell_ = iarray(ncomp, 0);
     time_ = array(ncell_, 0);
     time_to_ = array(ncell_, 0);

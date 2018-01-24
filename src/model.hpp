@@ -59,6 +59,9 @@ public:
     // are to be delivered at or after the current model time.
     void inject_events(const pse_vector& events);
 
+    // Quick hack to be able to set the starting membrane potential
+    std::vector<cell_group_ptr>& groups() { return cell_groups_; }
+
 private:
     // Private helper function that sets up the event lanes for an epoch.
     // See comments on implementation for more information.

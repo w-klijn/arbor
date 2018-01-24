@@ -10,6 +10,7 @@
 #include <math.h>
 #include <map>
 #include <string>
+#include <stdlib.h>
 
 
 #include <common_types.hpp>
@@ -366,8 +367,10 @@ public:
 
     // Returns a vector of all synaptic parameters sets for this gid
     std::vector<arb::cell_connection> synapses_on(arb::cell_gid_type gid) const {
+
         std::mt19937 gen;
-        gen.seed(gid);
+        //TODOW: Fix rng productions
+        gen.seed(gid + time(0));
 
         std::vector<arb::cell_connection> connections;
         unsigned idx_projection = 0;

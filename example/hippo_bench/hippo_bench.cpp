@@ -27,6 +27,8 @@
 #include <util/debug.hpp>
 #include <util/ioutil.hpp>
 #include <util/nop.hpp>
+#include <mc_cell_group.hpp>
+#include <fvm_multicell.hpp>
 
 #include "io.hpp"
 #include "../miniapp/trace.hpp"
@@ -120,6 +122,19 @@ int main(int argc, char** argv) {
                 }
             }
         }
+
+        // then update resting potential
+        for (auto& g : m.groups()) {
+
+            //arb::util::any_cast<arb::mc_cell_group>(g.get());
+            auto ptr = dynamic_cast<arb::mc_cell_group<arb::fvm::fvm_multicell<arb::multicore::backend>>*>(g.get());
+
+            if (ptr) {
+                // set the new resting potential to -42
+                ptr->set_resting_potential(-63);
+            }
+        }
+
 
         auto ssched = regular_schedule(options.sample_dt);
         for (auto& trace : sample_traces) {

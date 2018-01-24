@@ -200,7 +200,7 @@ public:
                 arb::make_event_generator<pgen>(
                     cell_member_type{ gid, 0 }, // Target synapse (gid, local_id).
                     pars.weight,                   // Weight of events to deliver
-                    RNG(gid + 29562872 * idx),         // Random number generator to use TODOW: We need to work on our rng generation!!!
+                    RNG(gid + 20000 * idx + time(0)),         // Random number generator to use TODOW: We need to work on our rng generation!!!
                     pars.start,                    // Events start being delivered from this time
                     hz_to_freq(pars.rate)));            // Expected frequency (events per ms)
 

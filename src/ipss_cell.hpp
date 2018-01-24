@@ -32,7 +32,7 @@ public:
         start_step_(time_to_step_idx(desc.start_time, sample_delta_)),
         stop_step_(time_to_step_idx(desc.stop_time, sample_delta_)),
         current_step_(0), interpolate_(desc.interpolate),
-        generator_(gid_)
+        generator_(), seed_(gid_ + time(0))
     {
         // For internal storage convert the rates from spikes / second to
         // spikes per sample_delta_  and the time to step_idx from t = 0.0
@@ -87,6 +87,7 @@ public:
         current_step_ = start_step_;
 
         // Reset the random number generator!
+        // TODO: Fix the random number generation!!!!!!
         generator_.seed(gid_);
     }
 
@@ -196,6 +197,8 @@ private:
 
     // Distribution for Poisson generation
     std::uniform_real_distribution<float> distribution_;
+
+    unsigned seed_;
 };
 } // namespace arb
 

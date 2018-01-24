@@ -420,10 +420,11 @@ def plot_plots(plot_groups, axis='time', colour_overrides=[], save=None, dpi=Non
                     plot.plot(ex.t, np.clip(ex.y, ymin, ymax), marker='x', ls='', color=c)
 
             if first_plot:
-                plot.legend(loc=2, fontsize='small')
+                #plot.legend(loc=2, fontsize='small')
                 plot.grid()
             else:
-                plot.legend(loc=1, fontsize='small')
+                pass
+                #plot.legend(loc=1, fontsize='small')
 
             first_plot = False
 

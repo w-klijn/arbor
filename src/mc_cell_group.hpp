@@ -57,7 +57,7 @@ public:
         probe_map_.reserve(n_probes);
         target_handles_.reserve(n_targets);
 
-        // Construct cell implementation, retrieving handles and maps. 
+        // Construct cell implementation, retrieving handles and maps.
         lowered_.initialize(gids_, rec, target_handles_, probe_map_);
 
         // Create a list of the global identifiers for the spike sources
@@ -217,6 +217,12 @@ public:
         PL();
 
         PL();
+    }
+
+    // TODOW: Quick hack to be able to set the starting membrane voltage
+    void set_resting_potential(double v) {
+        lowered_.resting_potential(v);
+        lowered_.reset();
     }
 
     const std::vector<spike>& spikes() const override {
