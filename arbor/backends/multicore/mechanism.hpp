@@ -39,6 +39,7 @@ protected:
         value_type* reversal_potential;
         value_type* internal_concentration;
         value_type* external_concentration;
+        value_type* ionic_charge;
     };
 
 public:
@@ -54,7 +55,8 @@ public:
         return s;
     }
 
-    void instantiate(fvm_size_type id, backend::shared_state& shared, const layout& w) override;
+    void instantiate(fvm_size_type id, backend::shared_state& shared, const mechanism_overrides&, const mechanism_layout&) override;
+    void initialize() override;
 
     void deliver_events() override {
         // Delegate to derived class, passing in event queue state.
@@ -62,8 +64,6 @@ public:
     }
 
     void set_parameter(const std::string& key, const std::vector<fvm_value_type>& values) override;
-
-    void set_global(const std::string& key, fvm_value_type value) override;
 
 protected:
     size_type width_ = 0;        // Instance width (number of CVs/sites)
@@ -78,12 +78,15 @@ protected:
     const value_type* vec_dt_;    // CV to integration time step.
     const value_type* vec_v_;     // CV to cell membrane voltage.
     value_type* vec_i_;           // CV to cell membrane current density.
+    value_type* vec_g_;           // CV to cell membrane conductivity.
     const value_type* temperature_degC_; // Pointer to global temperature scalar.
     deliverable_event_stream* event_stream_ptr_;
 
     // Per-mechanism index and weight data, excepting ion indices.
 
     iarray node_index_;
+    iarray multiplicity_;
+    bool mult_in_place_;
     constraint_partition index_constraints_;
     const value_type* weight_;    // Points within data_ after instantiation.
 
@@ -99,17 +102,22 @@ protected:
     using global_table_entry = std::pair<const char*, value_type*>;
     using mechanism_global_table = std::vector<global_table_entry>;
 
+    using state_table_entry = std::pair<const char*, value_type**>;
+    using mechanism_state_table = std::vector<state_table_entry>;
+
     using field_table_entry = std::pair<const char*, value_type**>;
     using mechanism_field_table = std::vector<field_table_entry>;
 
     using field_default_entry = std::pair<const char*, value_type>;
     using mechanism_field_default_table = std::vector<field_default_entry>;
 
-    using ion_state_entry = std::pair<ionKind, ion_state_view*>;
+    using ion_state_entry = std::pair<const char*, ion_state_view*>;
     using mechanism_ion_state_table = std::vector<ion_state_entry>;
 
-    using ion_index_entry = std::pair<ionKind, iarray*>;
+    using ion_index_entry = std::pair<const char*, iarray*>;
     using mechanism_ion_index_table = std::vector<ion_index_entry>;
+
+    virtual void nrn_init() = 0;
 
     // Generated mechanisms must implement the following methods, together with
     // fingerprint(), clone(), kind(), nrn_init(), nrn_state(), nrn_current()
@@ -121,6 +129,7 @@ protected:
     virtual mechanism_field_table field_table() { return {}; }
     virtual mechanism_field_default_table field_default_table() { return {}; }
     virtual mechanism_global_table global_table() { return {}; }
+    virtual mechanism_state_table state_table() { return {}; }
     virtual mechanism_ion_state_table ion_state_table() { return {}; }
     virtual mechanism_ion_index_table ion_index_table() { return {}; }
 

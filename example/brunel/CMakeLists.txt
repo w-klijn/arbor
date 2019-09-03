@@ -1,5 +1,4 @@
-add_executable(brunel-miniapp
-    brunel_miniapp.cpp
-    io.cpp)
+add_executable(brunel EXCLUDE_FROM_ALL brunel.cpp)
+add_dependencies(examples brunel)
 
-target_link_libraries(brunel-miniapp PRIVATE arbor arbor-aux ext-tclap)
+target_link_libraries(brunel PRIVATE arbor arborenv arbor-sup ext-tclap)

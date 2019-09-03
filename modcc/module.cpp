@@ -11,6 +11,7 @@
 #include "functionexpander.hpp"
 #include "functioninliner.hpp"
 #include "kineticrewriter.hpp"
+#include "linearrewriter.hpp"
 #include "module.hpp"
 #include "parser.hpp"
 #include "solvers.hpp"
@@ -26,15 +27,24 @@ class NrnCurrentRewriter: public BlockRewriterBase {
         return id(name, loc_);
     }
 
-    static ionKind is_ion_update(Expression* e) {
+    static sourceKind current_update(Expression* e) {
         if(auto a = e->is_assignment()) {
             if(auto sym = a->lhs()->is_identifier()->symbol()) {
                 if(auto var = sym->is_local_variable()) {
-                    return var->ion_channel();
+                    if(auto ext = var->external_variable()) {
+                        sourceKind src = ext->data_source();
+                        if (src==sourceKind::current_density ||
+                            src==sourceKind::current ||
+                            src==sourceKind::ion_current_density ||
+                            src==sourceKind::ion_current)
+                        {
+                            return src;
+                        }
+                    }
                 }
             }
         }
-        return ionKind::none;
+        return sourceKind::no_source;
     }
 
     bool has_current_update_ = false;
@@ -45,24 +55,13 @@ public:
 
     virtual void finalize() override {
         if (has_current_update_) {
-            // Initialize current_ as first statement.
+            // Initialize conductivity_ as first statement.
+            statements_.push_front(make_expression<AssignmentExpression>(loc_,
+                    id("conductivity_"),
+                    make_expression<NumberExpression>(loc_, 0.0)));
             statements_.push_front(make_expression<AssignmentExpression>(loc_,
                     id("current_"),
                     make_expression<NumberExpression>(loc_, 0.0)));
-
-            statements_.push_back(make_expression<AssignmentExpression>(loc_,
-                id("current_"),
-                make_expression<MulBinaryExpression>(loc_,
-                    id("weight_"),
-                    id("current_"))));
-
-            for (auto& v: ion_current_vars_) {
-                statements_.push_back(make_expression<AssignmentExpression>(loc_,
-                    id(v),
-                    make_expression<MulBinaryExpression>(loc_,
-                        id("weight_"),
-                        id(v))));
-            }
         }
     }
 
@@ -72,14 +71,23 @@ public:
         statements_.push_back(e->clone());
         auto loc = e->location();
 
-        auto update_kind = is_ion_update(e);
-        if (update_kind!=ionKind::none) {
-            if (update_kind!=ionKind::nonspecific) {
-                ion_current_vars_.insert(e->lhs()->is_identifier()->name());
-            }
+        sourceKind current_source = current_update(e);
+        if (current_source != sourceKind::no_source) {
             has_current_update_ = true;
 
-            if (!linear_test(e->rhs(), {"v"}).is_linear) {
+            if (current_source==sourceKind::ion_current_density || current_source==sourceKind::ion_current) {
+                ion_current_vars_.insert(e->lhs()->is_identifier()->name());
+            }
+            else {
+                // A 'nonspecific' current contribution.
+                // Remove data source; currents accumulated into `current_` instead.
+
+                e->lhs()->is_identifier()->symbol()->is_local_variable()
+                    ->external_variable()->data_source(sourceKind::no_source);
+            }
+
+            linear_test_result L = linear_test(e->rhs(), {"v"});
+            if (!L.is_linear) {
                 error({"current update expressions must be linear in v: "+e->rhs()->to_string(),
                        e->location()});
                 return;
@@ -90,6 +98,13 @@ public:
                     make_expression<AddBinaryExpression>(loc,
                         id("current_", loc),
                         e->lhs()->clone())));
+                if (L.coef.count("v")) {
+                    statements_.push_back(make_expression<AssignmentExpression>(loc,
+                        id("conductivity_", loc),
+                        make_expression<AddBinaryExpression>(loc,
+                            id("conductivity_", loc),
+                            L.coef.at("v")->clone())));
+                }
             }
         }
     }
@@ -141,6 +156,8 @@ bool Module::semantic() {
     // symbol table.
     // Returns false if a symbol name clashes with the name of a symbol that
     // is already in the symbol table.
+    bool linear = true;
+    std::vector<std::string> state_vars;
     auto move_symbols = [this] (std::vector<symbol_ptr>& symbol_list) {
         for(auto& symbol: symbol_list) {
             bool is_found = (symbols_.find(symbol->name()) != symbols_.end());
@@ -222,15 +239,12 @@ bool Module::semantic() {
         return id;
     };
 
-    auto numeric_literal = [](double v) -> expression_ptr {
-        return make_expression<NumberExpression>(Location{}, v);
-    };
-
     for (auto& sym: symbols_) {
         Location loc;
 
         auto state = sym.second->is_variable();
         if (!state || !state->is_state()) continue;
+        state_vars.push_back(state->name());
 
         auto shadowed = state->shadows();
         if (!shadowed) continue;
@@ -238,17 +252,9 @@ bool Module::semantic() {
         auto ionvar = shadowed->is_indexed_variable();
         if (!ionvar || !ionvar->is_ion() || !ionvar->is_write()) continue;
 
-        auto weight = symbols_["weight_"].get();
-        if (!weight) throw compiler_exception("missing weight_ global", loc);
-
         ion_assignments.push_back(
             make_expression<AssignmentExpression>(loc,
-                sym_to_id(ionvar),
-                make_expression<MulBinaryExpression>(loc,
-                    make_expression<MulBinaryExpression>(loc,
-                        numeric_literal(0.1),
-                        sym_to_id(weight)),
-                    sym_to_id(state))));
+                sym_to_id(ionvar), sym_to_id(state)));
     }
 
     symbols_["write_ions"] = make_symbol<APIMethod>(Location{}, "write_ions",
@@ -274,7 +280,45 @@ bool Module::semantic() {
     auto& init_body = api_init->body()->statements();
 
     for(auto& e : *proc_init->body()) {
-        init_body.emplace_back(e->clone());
+        auto solve_expression = e->is_solve_statement();
+        if (solve_expression) {
+            // Grab SOLVE statements, put them in `body` after translation.
+            std::set<std::string> solved_ids;
+            std::unique_ptr<SolverVisitorBase> solver = std::make_unique<SparseSolverVisitor>();
+
+            // The solve expression inside an initial block can only refer to a linear block
+            auto solve_proc = solve_expression->procedure();
+
+            if (solve_proc->kind() == procedureKind::linear) {
+                solver = std::make_unique<LinearSolverVisitor>(state_vars);
+                linear_rewrite(solve_proc->body(), state_vars)->accept(solver.get());
+            } else {
+                error("A SOLVE expression in an INITIAL block can only be used to solve a LINEAR block, which" +
+                      solve_expression->name() + "is not.", solve_expression->location());
+                return false;
+            }
+
+            if (auto solve_block = solver->as_block(false)) {
+                // Check that we didn't solve an already solved variable.
+                for (const auto &id: solver->solved_identifiers()) {
+                    if (solved_ids.count(id) > 0) {
+                        error("Variable " + id + " solved twice!", solve_expression->location());
+                        return false;
+                    }
+                    solved_ids.insert(id);
+                }
+                // Copy body into nrn_init.
+                for (auto &stmt: solve_block->is_block()->statements()) {
+                    init_body.emplace_back(stmt->clone());
+                }
+            } else {
+                // Something went wrong: copy errors across.
+                append_errors(solver->errors());
+                return false;
+            }
+        } else {
+            init_body.emplace_back(e->clone());
+        }
     }
 
     api_init->semantic(symbols_);
@@ -332,8 +376,19 @@ bool Module::semantic() {
             if (deriv->kind()==procedureKind::kinetic) {
                 kinetic_rewrite(deriv->body())->accept(solver.get());
             }
+            else if (deriv->kind()==procedureKind::linear) {
+                solver = std::make_unique<LinearSolverVisitor>(state_vars);
+                linear_rewrite(deriv->body(), state_vars)->accept(solver.get());
+            }
             else {
                 deriv->body()->accept(solver.get());
+                for (auto& s: deriv->body()->statements()) {
+                    if(s->is_assignment() && !state_vars.empty()) {
+                        linear_test_result r = linear_test(s->is_assignment()->rhs(), state_vars);
+                        linear &= r.is_linear;
+                        linear &= r.is_homogeneous;
+                    }
+                }
             }
 
             if (auto solve_block = solver->as_block(false)) {
@@ -382,6 +437,15 @@ bool Module::semantic() {
         //..........................................................
         NrnCurrentRewriter nrn_current_rewriter;
         breakpoint->accept(&nrn_current_rewriter);
+
+        for (auto& s: breakpoint->body()->statements()) {
+            if(s->is_assignment() && !state_vars.empty()) {
+                linear_test_result r = linear_test(s->is_assignment()->rhs(), state_vars);
+                linear &= r.is_linear;
+                linear &= r.is_homogeneous;
+            }
+        }
+
         auto nrn_current_block = nrn_current_rewriter.as_block();
         if (!nrn_current_block) {
             append_errors(nrn_current_rewriter.errors());
@@ -399,6 +463,38 @@ bool Module::semantic() {
         error("a BREAKPOINT block is required");
         return false;
     }
+
+    if (has_symbol("net_receive", symbolKind::procedure)) {
+        auto net_rec_api = make_empty_api_method("net_rec_api", "net_receive");
+        if (net_rec_api.second) {
+            for (auto &s: net_rec_api.second->body()->statements()) {
+                if (s->is_assignment()) {
+                    for (const auto &id: state_vars) {
+                        auto coef = symbolic_pdiff(s->is_assignment()->rhs(), id);
+                        if(coef->is_number()) {
+                            if (!s->is_assignment()->lhs()->is_identifier()) {
+                                error(pprintf("Left hand side of assignment is not an identifier"));
+                                return false;
+                            }
+                            linear &= s->is_assignment()->lhs()->is_identifier()->name() == id ?
+                                      coef->is_number()->value() == 1 :
+                                      coef->is_number()->value() == 0;
+                        }
+                        else {
+                            linear = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    linear_ = linear;
+
+    // Are we writing an ionic reversal potential? If so, change the moduleKind to
+    // `revpot` and assert that the mechanism is 'pure': it has no state variables;
+    // it contributes to no currents, ionic or otherwise; it isn't a point mechanism;
+    // and it writes to only one ionic reversal potential.
+    check_revpot_mechanism();
 
     // Perform semantic analysis and inlining on function and procedure bodies
     // in order to inline calls inside the newly crated API methods.
@@ -422,35 +518,26 @@ void Module::add_variables_to_symbols() {
             return symbols_[var->name()] = symbol_ptr{var};
         };
 
-    // mechanisms use a vector of weights to:
-    //  density mechs:
-    //      - convert current densities from 10.A.m^-2 to A.m^-2
-    //      - density or proportion of a CV's area affected by the mechansim
-    //  point procs:
-    //      - convert current in nA to current densities in A.m^-2
-
-    create_variable(Token(tok::identifier, "weight_"),
-        accessKind::read, visibilityKind::global, linkageKind::external, rangeKind::range);
-
     // add indexed variables to the table
     auto create_indexed_variable = [this]
-        (std::string const& name, std::string const& indexed_name, sourceKind data_source,
-         tok op, accessKind acc, ionKind ch, Location loc) -> symbol_ptr&
+        (std::string const& name, sourceKind data_source,
+         accessKind acc, std::string ch, Location loc) -> symbol_ptr&
     {
         if(symbols_.count(name)) {
             throw compiler_exception(
                 pprintf("the symbol % already exists", yellow(name)), loc);
         }
         return symbols_[name] =
-            make_symbol<IndexedVariable>(loc, name, indexed_name, data_source, acc, op, ch);
+            make_symbol<IndexedVariable>(loc, name, data_source, acc, ch);
     };
 
-    create_indexed_variable("current_", "vec_i", sourceKind::current, tok::plus,
-                            accessKind::write, ionKind::none, Location());
-    create_indexed_variable("v", "vec_v", sourceKind::voltage, tok::eq,
-                            accessKind::read,  ionKind::none, Location());
-    create_indexed_variable("dt", "vec_dt", sourceKind::dt, tok::eq,
-                            accessKind::read,  ionKind::none, Location());
+    sourceKind current_kind = kind_==moduleKind::point? sourceKind::current: sourceKind::current_density;
+    sourceKind conductance_kind = kind_==moduleKind::point? sourceKind::conductance: sourceKind::conductivity;
+
+    create_indexed_variable("current_", current_kind, accessKind::write, "", Location());
+    create_indexed_variable("conductivity_", conductance_kind, accessKind::write, "", Location());
+    create_indexed_variable("v", sourceKind::voltage, accessKind::read,  "", Location());
+    create_indexed_variable("dt", sourceKind::dt, accessKind::read,  "", Location());
 
     // If we put back support for accessing cell time again from NMODL code,
     // add indexed_variable also for "time" with appropriate cell-index based
@@ -472,8 +559,7 @@ void Module::add_variables_to_symbols() {
         // data source. Retrieval of value is handled especially by printers.
 
         if (id.name() == "celsius") {
-            create_indexed_variable("celsius", "celsius",
-                sourceKind::temperature, tok::eq, accessKind::read, ionKind::none, Location());
+            create_indexed_variable("celsius", sourceKind::temperature, accessKind::read, "", Location());
         }
         else {
             // Parameters are scalar by default, but may later be changed to range.
@@ -511,10 +597,10 @@ void Module::add_variables_to_symbols() {
     // first the ION channels
     // add ion channel variables
     auto update_ion_symbols = [this, create_indexed_variable]
-            (Token const& tkn, accessKind acc, ionKind channel)
+            (Token const& tkn, accessKind acc, const std::string& channel)
     {
         std::string name = tkn.spelling;
-        sourceKind data_source = ion_source(channel, name);
+        sourceKind data_source = ion_source(channel, name, kind_);
 
         // If the symbol already exists and is not a state variable,
         // it is an error.
@@ -526,7 +612,11 @@ void Module::add_variables_to_symbols() {
         VariableExpression* state = nullptr;
         if (has_symbol(name)) {
             state = symbols_[name].get()->is_variable();
-            if (!state || !state->is_state()) {
+            if (!state) {
+                error(pprintf("the symbol defined % can't be redeclared", yellow(name)), tkn.location);
+                return;
+            }
+            if (!state->is_state()) {
                 error(pprintf("the symbol defined % at % can't be redeclared",
                     state->location(), yellow(name)), tkn.location);
                 return;
@@ -534,26 +624,36 @@ void Module::add_variables_to_symbols() {
             name += "_shadowed_";
         }
 
-        auto& sym = create_indexed_variable(name, "ion_"+name, data_source,
-                acc==accessKind::read ? tok::eq : tok::plus, acc, channel, tkn.location);
+        auto& sym = create_indexed_variable(name, data_source, acc, channel, tkn.location);
 
         if (state) {
             state->shadows(sym.get());
         }
     };
 
-    // check for nonspecific current
+    // Nonspecific current variables are represented by an indexed variable
+    // with a 'current' data source. Assignments in the NrnCurrent block will
+    // later be rewritten so that these contributions are accumulated in `current_`
+    // (potentially saving some weight multiplications); at that point the
+    // data source for the nonspecific current variable will be reset to 'no_source'.
+
     if( neuron_block_.has_nonspecific_current() ) {
         auto const& i = neuron_block_.nonspecific_current;
-        update_ion_symbols(i, accessKind::write, ionKind::nonspecific);
+        create_indexed_variable(i.spelling, sourceKind::current, accessKind::write, "", i.location);
     }
 
     for(auto const& ion : neuron_block_.ions) {
         for(auto const& var : ion.read) {
-            update_ion_symbols(var, accessKind::read, ion.kind());
+            update_ion_symbols(var, accessKind::read, ion.name);
         }
         for(auto const& var : ion.write) {
-            update_ion_symbols(var, accessKind::write, ion.kind());
+            update_ion_symbols(var, accessKind::write, ion.name);
+        }
+
+        if(ion.uses_valence()) {
+            Token valence_var = ion.valence_var;
+            create_indexed_variable(valence_var.spelling, sourceKind::ion_valence,
+                    accessKind::read, ion.name, valence_var.location);
         }
     }
 
@@ -713,4 +813,44 @@ int Module::semantic_func_proc() {
     }
     return errors;
 }
+
+void Module::check_revpot_mechanism() {
+    int n_write_revpot = 0;
+    for (auto& iondep: neuron_block_.ions) {
+        if (iondep.writes_rev_potential()) ++n_write_revpot;
+    }
+
+    if (n_write_revpot==0) return;
+
+    bool pure = true;
+
+    // Are we marked as a point mechanism?
+    if (kind()==moduleKind::point) {
+        error("Cannot write reversal potential from a point mechanism.");
+        return;
+    }
+
+    // Do we write any other ionic variables or a nonspecific current?
+    for (auto& iondep: neuron_block_.ions) {
+        pure &= !iondep.writes_concentration_int();
+        pure &= !iondep.writes_concentration_ext();
+        pure &= !iondep.writes_current();
+    }
+    pure &= !neuron_block_.has_nonspecific_current();
+
+    if (!pure) {
+        error("Cannot write reversal potential and also to other currents or ionic state.");
+        return;
+    }
+
+    // Do we have any state variables?
+    pure &= state_block_.state_variables.size()==0;
+    if (!pure) {
+        error("Cannot write reversal potential and also maintain state variables.");
+        return;
+    }
+
+    kind_ = moduleKind::revpot;
+}
+
 

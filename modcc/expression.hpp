@@ -9,8 +9,8 @@
 
 #include "error.hpp"
 #include "identifier.hpp"
-#include "memop.hpp"
 #include "scope.hpp"
+#include "token.hpp"
 
 #include "io/pprintf.hpp"
 
@@ -33,9 +33,11 @@ class BinaryExpression;
 class UnaryExpression;
 class AssignmentExpression;
 class ConserveExpression;
+class LinearExpression;
 class ReactionExpression;
 class StoichExpression;
 class StoichTermExpression;
+class CompartmentExpression;
 class ConditionalExpression;
 class InitialBlock;
 class SolveExpression;
@@ -79,7 +81,8 @@ enum class procedureKind {
     net_receive, ///< NET_RECEIVE
     breakpoint,  ///< BREAKPOINT
     kinetic,     ///< KINETIC
-    derivative   ///< DERIVATIVE
+    derivative,  ///< DERIVATIVE
+    linear,      ///< LINEAR
 };
 std::string to_string(procedureKind k);
 
@@ -168,10 +171,12 @@ public:
     virtual UnaryExpression*       is_unary()             {return nullptr;}
     virtual AssignmentExpression*  is_assignment()        {return nullptr;}
     virtual ConserveExpression*    is_conserve()          {return nullptr;}
+    virtual LinearExpression*      is_linear()            {return nullptr;}
     virtual ReactionExpression*    is_reaction()          {return nullptr;}
     virtual StoichExpression*      is_stoich()            {return nullptr;}
     virtual StoichTermExpression*  is_stoich_term()       {return nullptr;}
     virtual ConditionalExpression* is_conditional()       {return nullptr;}
+    virtual CompartmentExpression* is_compartment()       {return nullptr;}
     virtual InitialBlock*          is_initial_block()     {return nullptr;}
     virtual SolveExpression*       is_solve_statement()   {return nullptr;}
     virtual Symbol*                is_symbol()            {return nullptr;}
@@ -455,8 +460,8 @@ public:
     void range(rangeKind r) {
         range_kind_ = r;
     }
-    void ion_channel(ionKind i) {
-        ion_channel_ = i;
+    void ion_channel(std::string i) {
+        ion_channel_ = std::move(i);
     }
     void state(bool s) {
         is_state_ = s;
@@ -474,7 +479,7 @@ public:
     linkageKind linkage() const {
         return linkage_;
     }
-    ionKind ion_channel() const {
+    const std::string& ion_channel() const {
         return ion_channel_;
     }
 
@@ -482,7 +487,7 @@ public:
         return shadows_;
     }
 
-    bool is_ion()       const {return ion_channel_ != ionKind::none;}
+    bool is_ion()       const {return !ion_channel_.empty();}
     bool is_state()     const {return is_state_;}
     bool is_range()     const {return range_kind_  == rangeKind::range;}
     bool is_scalar()    const {return !is_range();}
@@ -507,63 +512,43 @@ protected:
     visibilityKind visibility_  = visibilityKind::local;
     linkageKind    linkage_     = linkageKind::external;
     rangeKind      range_kind_  = rangeKind::range;
-    ionKind        ion_channel_ = ionKind::none;
+    std::string    ion_channel_ = "";
     double         value_       = std::numeric_limits<double>::quiet_NaN();
     Symbol*        shadows_     = nullptr;
 };
 
-// an indexed variable
+// Indexed variables refer to data held in the shared simulation state.
+// Printers will rewrite reads from or assignments from indexed variables
+// according to its data source and ion channel.
+
 class IndexedVariable : public Symbol {
 public:
     IndexedVariable(Location loc,
                     std::string lookup_name,
-                    std::string index_name,
                     sourceKind data_source,
                     accessKind acc,
-                    tok o=tok::eq,
-                    ionKind channel=ionKind::none)
+                    std::string channel="")
     :   Symbol(std::move(loc), std::move(lookup_name), symbolKind::indexed_variable),
         access_(acc),
-        ion_channel_(channel),
-        index_name_(index_name), // (TODO: deprecate/remove this...)
-        data_source_(data_source),
-        op_(o)
+        ion_channel_(std::move(channel)),
+        data_source_(data_source)
     {
-        std::string msg;
         // external symbols are either read or write only
         if(access()==accessKind::readwrite) {
-            msg = pprintf("attempt to generate an index % with readwrite access",
-                          yellow(lookup_name));
-           goto compiler_error;
+            throw compiler_exception(
+                pprintf("attempt to generate an index % with readwrite access", yellow(lookup_name)),
+                location_);
         }
-        // read only variables must be assigned via equality
-        if(is_read() && op()!=tok::eq) {
-            msg = pprintf("read only indexes % must use assignment",
-                            yellow(lookup_name));
-            goto compiler_error;
-        }
-        // write only variables must be update via addition/subtraction
-        if(is_write() && (op()!=tok::plus && op()!=tok::minus)) {
-            msg = pprintf("write only index %  must use addition or subtraction",
-                          yellow(lookup_name));
-            goto compiler_error;
-        }
-
-        return;
-
-    compiler_error:
-        throw(compiler_exception(msg, location_));
     }
 
     std::string to_string() const override;
 
     accessKind access() const { return access_; }
-    ionKind ion_channel() const { return ion_channel_; }
+    std::string ion_channel() const { return ion_channel_; }
     sourceKind data_source() const { return data_source_; }
-    std::string const& index_name() const { return index_name_; }
-    tok op() const { return op_; }
+    void data_source(sourceKind k) { data_source_ = k; }
 
-    bool is_ion()   const { return ion_channel_ != ionKind::none; }
+    bool is_ion()   const { return !ion_channel_.empty(); }
     bool is_read()  const { return access_ == accessKind::read;   }
     bool is_write() const { return access_ == accessKind::write;  }
 
@@ -573,10 +558,8 @@ public:
     ~IndexedVariable() {}
 protected:
     accessKind  access_;
-    ionKind     ion_channel_;
-    std::string index_name_; // hint to printer only
+    std::string ion_channel_;
     sourceKind  data_source_;
-    tok op_;
 };
 
 class LocalVariable : public Symbol {
@@ -597,12 +580,11 @@ public :
     }
 
     bool is_indexed() const {
-        return external_!=nullptr && ion_channel()!=ionKind::nonspecific;
+        return external_!=nullptr && external_->data_source()!=sourceKind::no_source;
     }
 
-    ionKind ion_channel() const {
-        if(external_) return external_->ion_channel();
-        return ionKind::none;
+    std::string ion_channel() const {
+        return external_? external_->ion_channel(): "";
     }
 
     bool is_read() const {
@@ -695,20 +677,20 @@ public:
     ConductanceExpression(
             Location loc,
             std::string name,
-            ionKind channel)
-    :   Expression(loc), name_(std::move(name)), ion_channel_(channel)
+            std::string channel)
+    :   Expression(loc), name_(std::move(name)), ion_channel_(std::move(channel))
     {}
 
     std::string to_string() const override {
         return blue("conductance") + "(" + yellow(name_) + ", "
-            + green(::to_string(ion_channel_)) + ")";
+            + green(ion_channel_.empty()? "none": ion_channel_) + ")";
     }
 
     std::string const& name() const {
         return name_;
     }
 
-    ionKind ion_channel() const {
+    std::string const& ion_channel() const {
         return ion_channel_;
     }
 
@@ -725,7 +707,7 @@ public:
 private:
     /// pointer to the variable symbol for the state variable to be solved for
     std::string name_;
-    ionKind ion_channel_;
+    std::string ion_channel_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -878,6 +860,33 @@ private:
     expression_ptr rhs_;
     expression_ptr fwd_rate_;
     expression_ptr rev_rate_;
+};
+
+class CompartmentExpression : public Expression {
+public:
+    CompartmentExpression(Location loc,
+                          expression_ptr&& scale_factor,
+                          std::vector<expression_ptr>&& state_vars)
+    : Expression(loc), scale_factor_(std::move(scale_factor)), state_vars_(std::move(state_vars)) {}
+
+    CompartmentExpression* is_compartment() override {return this;}
+
+    std::string to_string() const override;
+    void semantic(scope_ptr scp) override;
+    expression_ptr clone() const override;
+    void accept(Visitor *v) override;
+
+    expression_ptr& scale_factor() { return scale_factor_; }
+    const expression_ptr& scale_factor() const { return scale_factor_; }
+
+    std::vector<expression_ptr>& state_vars() { return state_vars_; }
+    const std::vector<expression_ptr>& state_vars() const { return state_vars_; }
+
+    ~CompartmentExpression() {}
+
+private:
+    expression_ptr scale_factor_;
+    std::vector<expression_ptr> state_vars_;
 };
 
 class StoichTermExpression : public Expression {
@@ -1041,8 +1050,6 @@ protected:
 
 class APIMethod : public ProcedureExpression {
 public:
-    using memop_type = MemOp<Symbol>;
-
     APIMethod( Location loc,
                std::string name,
                std::vector<expression_ptr>&& args,
@@ -1295,6 +1302,20 @@ public:
     {}
 
     ConserveExpression* is_conserve() override {return this;}
+    expression_ptr clone() const override;
+
+    void semantic(scope_ptr scp) override;
+
+    void accept(Visitor *v) override;
+};
+
+class LinearExpression : public BinaryExpression {
+public:
+    LinearExpression(Location loc, expression_ptr&& lhs, expression_ptr&& rhs)
+            :   BinaryExpression(loc, tok::eq, std::move(lhs), std::move(rhs))
+    {}
+
+    LinearExpression* is_linear() override {return this;}
     expression_ptr clone() const override;
 
     void semantic(scope_ptr scp) override;

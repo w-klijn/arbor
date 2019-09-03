@@ -11,9 +11,10 @@
 
 #include <arbor/assert_macro.hpp>
 #include <arbor/common_types.hpp>
+#include <arbor/cable_cell.hpp>
 #include <arbor/context.hpp>
 #include <arbor/load_balance.hpp>
-#include <arbor/mc_cell.hpp>
+#include <arbor/cable_cell.hpp>
 #include <arbor/profile/meter_manager.hpp>
 #include <arbor/profile/profiler.hpp>
 #include <arbor/simple_sampler.hpp>
@@ -21,16 +22,47 @@
 #include <arbor/recipe.hpp>
 #include <arbor/version.hpp>
 
-#include <aux/ioutil.hpp>
-#include <aux/json_meter.hpp>
+#include <arborenv/concurrency.hpp>
+#include <arborenv/gpu_env.hpp>
 
-#include "parameters.hpp"
+#include <sup/ioutil.hpp>
+#include <sup/json_meter.hpp>
+#include <sup/json_params.hpp>
 
 #ifdef ARB_MPI_ENABLED
 #include <mpi.h>
-#include <aux/with_mpi.hpp>
+#include <arborenv/with_mpi.hpp>
 #endif
 
+// Parameters used to generate the random cell morphologies.
+struct cell_parameters {
+    cell_parameters() = default;
+
+    //  Maximum number of levels in the cell (not including the soma)
+    unsigned max_depth = 5;
+
+    // The following parameters are described as ranges.
+    // The first value is at the soma, and the last value is used on the last level.
+    // Values at levels in between are found by linear interpolation.
+    std::array<double,2> branch_probs = {1.0, 0.5}; //  Probability of a branch occuring.
+    std::array<unsigned,2> compartments = {20, 2};  //  Compartment count on a branch.
+    std::array<double,2> lengths = {200, 20};       //  Length of branch in μm.
+
+    // The number of synapses per cell.
+    unsigned synapses = 1;
+};
+
+struct ring_params {
+    ring_params() = default;
+
+    std::string name = "default";
+    unsigned num_cells = 10;
+    double min_delay = 10;
+    double duration = 100;
+    cell_parameters cell;
+};
+
+ring_params read_options(int argc, char** argv);
 using arb::cell_gid_type;
 using arb::cell_lid_type;
 using arb::cell_size_type;
@@ -43,7 +75,7 @@ using arb::cell_probe_address;
 void write_trace_json(const arb::trace_data<double>& trace);
 
 // Generate a cell.
-arb::mc_cell branch_cell(arb::cell_gid_type gid, const cell_parameters& params);
+arb::cable_cell branch_cell(arb::cell_gid_type gid, const cell_parameters& params);
 
 class ring_recipe: public arb::recipe {
 public:
@@ -51,7 +83,9 @@ public:
         num_cells_(num_cells),
         cell_params_(params),
         min_delay_(min_delay)
-    {}
+    {
+        gprop_.default_parameters = arb::neuron_parameter_defaults;
+    }
 
     cell_size_type num_cells() const override {
         return num_cells_;
@@ -62,7 +96,7 @@ public:
     }
 
     cell_kind get_cell_kind(cell_gid_type gid) const override {
-        return cell_kind::cable1d_neuron;
+        return cell_kind::cable;
     }
 
     // Each cell has one spike detector (at the soma).
@@ -86,7 +120,7 @@ public:
     std::vector<arb::event_generator> event_generators(cell_gid_type gid) const override {
         std::vector<arb::event_generator> gens;
         if (!gid) {
-            gens.push_back(arb::explicit_generator(arb::pse_vector{{{0, 0}, 0.1, 1.0}}));
+            gens.push_back(arb::explicit_generator(arb::pse_vector{{{0, 0}, 1.0, event_weight_}}));
         }
         return gens;
     }
@@ -105,11 +139,17 @@ public:
         return arb::probe_info{id, kind, cell_probe_address{loc, kind}};
     }
 
+    arb::util::any get_global_properties(arb::cell_kind) const override {
+        return gprop_;
+    }
+
+
 private:
     cell_size_type num_cells_;
     cell_parameters cell_params_;
     double min_delay_;
-    float event_weight_ = 0.01;
+    float event_weight_ = 0.05;
+    arb::cable_cell_global_properties gprop_;
 };
 
 struct cell_stats {
@@ -130,7 +170,7 @@ struct cell_stats {
         size_type nsegs_tmp = 0;
         size_type ncomp_tmp = 0;
         for (size_type i=b; i<e; ++i) {
-            auto c = arb::util::any_cast<arb::mc_cell>(r.get_cell_description(i));
+            auto c = arb::util::any_cast<arb::cable_cell>(r.get_cell_description(i));
             nsegs_tmp += c.num_segments();
             ncomp_tmp += c.num_compartments();
         }
@@ -139,7 +179,7 @@ struct cell_stats {
 #else
         ncells = r.num_cells();
         for (size_type i=0; i<ncells; ++i) {
-            auto c = arb::util::any_cast<arb::mc_cell>(r.get_cell_description(i));
+            auto c = arb::util::any_cast<arb::cable_cell>(r.get_cell_description(i));
             nsegs += c.num_segments();
             ncomp += c.num_compartments();
         }
@@ -154,28 +194,33 @@ struct cell_stats {
     }
 };
 
-
 int main(int argc, char** argv) {
     try {
         bool root = true;
 
-#ifdef ARB_MPI_ENABLED
-        aux::with_mpi guard(argc, argv, false);
-        auto context = arb::make_context(arb::proc_allocation(), MPI_COMM_WORLD);
-        {
-            int rank;
-            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-            root = rank==0;
+        arb::proc_allocation resources;
+        if (auto nt = arbenv::get_env_num_threads()) {
+            resources.num_threads = nt;
         }
+        else {
+            resources.num_threads = arbenv::thread_concurrency();
+        }
+
+#ifdef ARB_MPI_ENABLED
+        arbenv::with_mpi guard(argc, argv, false);
+        resources.gpu_id = arbenv::find_private_gpu(MPI_COMM_WORLD);
+        auto context = arb::make_context(resources, MPI_COMM_WORLD);
+        root = arb::rank(context) == 0;
 #else
-        auto context = arb::make_context();
+        resources.gpu_id = arbenv::default_gpu();
+        auto context = arb::make_context(resources);
 #endif
 
 #ifdef ARB_PROFILE_ENABLED
         arb::profile::profiler_initialize(context);
 #endif
 
-        std::cout << aux::mask_stream(root);
+        std::cout << sup::mask_stream(root);
 
         // Print a banner with information about hardware configuration
         std::cout << "gpu:      " << (has_gpu(context)? "yes": "no") << "\n";
@@ -254,7 +299,7 @@ int main(int argc, char** argv) {
         std::cout << report;
     }
     catch (std::exception& e) {
-        std::cerr << "exception caught in ring miniapp:\n" << e.what() << "\n";
+        std::cerr << "exception caught in ring miniapp: " << e.what() << "\n";
         return 1;
     }
 
@@ -291,12 +336,12 @@ double interp(const std::array<T,2>& r, unsigned i, unsigned n) {
     return r[0] + p*(r1-r0);
 }
 
-arb::mc_cell branch_cell(arb::cell_gid_type gid, const cell_parameters& params) {
-    arb::mc_cell cell;
+arb::cable_cell branch_cell(arb::cell_gid_type gid, const cell_parameters& params) {
+    arb::cable_cell cell;
+    cell.default_parameters.axial_resistivity = 100; // [Ω·cm]
 
     // Add soma.
     auto soma = cell.add_soma(12.6157/2.0); // For area of 500 μm².
-    soma->rL = 100;
     soma->add_mechanism("hh");
 
     std::vector<std::vector<unsigned>> levels;
@@ -325,7 +370,6 @@ arb::mc_cell branch_cell(arb::cell_gid_type gid, const cell_parameters& params) 
                     auto dend = cell.add_cable(sec, arb::section_kind::dendrite, dend_radius, dend_radius, l);
                     dend->set_compartments(nc);
                     dend->add_mechanism("pas");
-                    dend->rL = 100;
                 }
             }
         }
@@ -341,6 +385,54 @@ arb::mc_cell branch_cell(arb::cell_gid_type gid, const cell_parameters& params) 
     // Add a synapse to the mid point of the first dendrite.
     cell.add_synapse({1, 0.5}, "expsyn");
 
+    // Add additional synapses that will not be connected to anything.
+    for (unsigned i=1u; i<params.synapses; ++i) {
+        cell.add_synapse({1, 0.5}, "expsyn");
+    }
+
     return cell;
+}
+
+ring_params read_options(int argc, char** argv) {
+    using sup::param_from_json;
+
+    ring_params params;
+    if (argc<2) {
+        std::cout << "Using default parameters.\n";
+        return params;
+    }
+    if (argc>2) {
+        throw std::runtime_error("More than command line one option not permitted.");
+    }
+
+    std::string fname = argv[1];
+    std::cout << "Loading parameters from file: " << fname << "\n";
+    std::ifstream f(fname);
+
+    if (!f.good()) {
+        throw std::runtime_error("Unable to open input parameter file: "+fname);
+    }
+
+    nlohmann::json json;
+    json << f;
+
+    param_from_json(params.name, "name", json);
+    param_from_json(params.num_cells, "num-cells", json);
+    param_from_json(params.duration, "duration", json);
+    param_from_json(params.min_delay, "min-delay", json);
+    param_from_json(params.cell.max_depth, "depth", json);
+    param_from_json(params.cell.branch_probs, "branch-probs", json);
+    param_from_json(params.cell.compartments, "compartments", json);
+    param_from_json(params.cell.lengths, "lengths", json);
+    param_from_json(params.cell.synapses, "synapses", json);
+
+    if (!json.empty()) {
+        for (auto it=json.begin(); it!=json.end(); ++it) {
+            std::cout << "  Warning: unused input parameter: \"" << it.key() << "\"\n";
+        }
+        std::cout << "\n";
+    }
+
+    return params;
 }
 

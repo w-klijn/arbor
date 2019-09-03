@@ -22,46 +22,40 @@ void run_celsius_test() {
 
     fvm_size_type ncell = 1;
     fvm_size_type ncv = 3;
-    std::vector<fvm_index_type> cv_to_cell(ncv, 0);
+    std::vector<fvm_index_type> cv_to_intdom(ncv, 0);
 
-    auto celsius_test = cat.instance<backend>("celsius_test");
+    std::vector<fvm_gap_junction> gj = {};
+    auto instance = cat.instance<backend>("celsius_test");
+    auto& celsius_test = instance.mech;
+
+    double temperature_K = 300.;
+    double temperature_C = temperature_K-273.15;
+
+    std::vector<fvm_value_type> temp(ncv, temperature_K);
+    std::vector<fvm_value_type> vinit(ncv, -65);
+
     auto shared_state = std::make_unique<typename backend::shared_state>(
-        ncell, cv_to_cell, celsius_test->data_alignment());
+        ncell, cv_to_intdom, gj, vinit, temp, celsius_test->data_alignment());
 
-    mechanism::layout layout;
+    mechanism_layout layout;
+    mechanism_overrides overrides;
+
     layout.weight.assign(ncv, 1.);
     for (fvm_size_type i = 0; i<ncv; ++i) {
         layout.cv.push_back(i);
     }
 
-    celsius_test->instantiate(0, *shared_state, layout);
-
-    double temperature_K = 300.;
-    double temperature_C = temperature_K-273.15;
-
-    shared_state->reset(-65., temperature_K);
+    celsius_test->instantiate(0, *shared_state, overrides, layout);
+    shared_state->reset();
 
     // expect 0 value in state 'c' after init:
 
-    celsius_test->nrn_init();
+    celsius_test->initialize();
     std::vector<fvm_value_type> expected_c_values(ncv, 0.);
 
     EXPECT_EQ(expected_c_values, mechanism_field(celsius_test.get(), "c"));
 
     // expect temperature_C value in state 'c' after state update:
-
-    celsius_test->nrn_state();
-    expected_c_values.assign(ncv, temperature_C);
-
-    EXPECT_EQ(expected_c_values, mechanism_field(celsius_test.get(), "c"));
-
-    // reset with new temperature and repeat test:
-
-    temperature_K = 290.;
-    temperature_C = temperature_K-273.15;
-
-    shared_state->reset(-65., temperature_K);
-    celsius_test->nrn_init();
 
     celsius_test->nrn_state();
     expected_c_values.assign(ncv, temperature_C);

@@ -1,3 +1,4 @@
-add_executable(event-gen event_gen.cpp)
+add_executable(generators EXCLUDE_FROM_ALL generators.cpp)
+add_dependencies(examples generators)
 
-target_link_libraries(event-gen PRIVATE arbor arbor-aux ext-json)
+target_link_libraries(generators PRIVATE arbor arbor-sup ext-json)

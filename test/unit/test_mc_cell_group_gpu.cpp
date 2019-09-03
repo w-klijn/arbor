@@ -18,7 +18,7 @@ namespace {
         return make_fvm_lowered_cell(backend_kind::gpu, context);
     }
 
-    mc_cell make_cell() {
+    cable_cell make_cell() {
         auto c = make_cell_ball_and_stick();
 
         c.add_detector({0, 0}, 0);
@@ -30,10 +30,15 @@ namespace {
 
 TEST(mc_cell_group, gpu_test)
 {
-    mc_cell_group group({0}, cable1d_recipe(make_cell()), lowered_cell());
+    auto rec = cable1d_recipe(make_cell());
+    rec.nernst_ion("na");
+    rec.nernst_ion("ca");
+    rec.nernst_ion("k");
+
+    mc_cell_group group{{0}, rec, lowered_cell()};
     group.advance(epoch(0, 50), 0.01, {});
 
-    // the model is expected to generate 4 spikes as a result of the
+    // The model is expected to generate 4 spikes as a result of the
     // fixed stimulus over 50 ms
     EXPECT_EQ(4u, group.spikes().size());
 }

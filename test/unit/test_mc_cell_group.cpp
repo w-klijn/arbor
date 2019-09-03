@@ -20,7 +20,7 @@ namespace {
         return make_fvm_lowered_cell(backend_kind::multicore, context);
     }
 
-    mc_cell make_cell() {
+    cable_cell make_cell() {
         auto c = make_cell_ball_and_stick();
 
         c.add_detector({0, 0}, 0);
@@ -38,11 +38,16 @@ ACCESS_BIND(
 TEST(mc_cell_group, get_kind) {
     mc_cell_group group{{0}, cable1d_recipe(make_cell()), lowered_cell()};
 
-    EXPECT_EQ(cell_kind::cable1d_neuron, group.get_cell_kind());
+    EXPECT_EQ(cell_kind::cable, group.get_cell_kind());
 }
 
 TEST(mc_cell_group, test) {
-    mc_cell_group group{{0}, cable1d_recipe(make_cell()), lowered_cell()};
+    auto rec = cable1d_recipe(make_cell());
+    rec.nernst_ion("na");
+    rec.nernst_ion("ca");
+    rec.nernst_ion("k");
+
+    mc_cell_group group{{0}, rec, lowered_cell()};
     group.advance(epoch(0, 50), 0.01, {});
 
     // Model is expected to generate 4 spikes as a result of the
@@ -53,7 +58,7 @@ TEST(mc_cell_group, test) {
 TEST(mc_cell_group, sources) {
     // Make twenty cells, with an extra detector on gids 0, 3 and 17
     // to make things more interesting.
-    std::vector<mc_cell> cells;
+    std::vector<cable_cell> cells;
 
     for (int i=0; i<20; ++i) {
         cells.push_back(make_cell());
@@ -65,7 +70,12 @@ TEST(mc_cell_group, sources) {
     }
 
     std::vector<cell_gid_type> gids = {3u, 4u, 10u, 16u, 17u, 18u};
-    mc_cell_group group{gids, cable1d_recipe(cells), lowered_cell()};
+    auto rec = cable1d_recipe(cells);
+    rec.nernst_ion("na");
+    rec.nernst_ion("ca");
+    rec.nernst_ion("k");
+
+    mc_cell_group group{gids, rec, lowered_cell()};
 
     // Expect group sources to be lexicographically sorted by source id
     // with gids in cell group's range and indices starting from zero.
@@ -84,3 +94,4 @@ TEST(mc_cell_group, sources) {
         }
     }
 }
+

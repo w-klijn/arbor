@@ -96,6 +96,10 @@ public:
         data_.push_back(e);
     }
 
+    void clear() {
+        data_.clear();
+    }
+
     // Return index into entry list which has column `c`.
     unsigned index(unsigned c) const {
         auto i = std::lower_bound(data_.begin(), data_.end(), c,
@@ -180,6 +184,12 @@ public:
 
     bool empty() const { return size()==0; }
     bool augmented() const { return aug!=npos; }
+
+    void clear() {
+        rows.clear();
+        cols = 0;
+        aug = row_npos;
+    }
 
     // Add a column on the right as part of the augmented submatrix.
     // The new entries are provided by a (full, dense representation)

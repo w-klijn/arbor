@@ -7,7 +7,7 @@
 #include <arbor/constants.hpp>
 #include <arbor/mechcat.hpp>
 #include <arbor/util/optional.hpp>
-#include <arbor/mc_cell.hpp>
+#include <arbor/cable_cell.hpp>
 
 #include "backends/multicore/fvm.hpp"
 #include "backends/multicore/mechanism.hpp"
@@ -32,7 +32,7 @@ ACCESS_BIND(value_type* multicore::mechanism::*, vec_i_ptr, &multicore::mechanis
 TEST(synapses, add_to_cell) {
     using namespace arb;
 
-    mc_cell cell;
+    cable_cell cell;
 
     // Soma with diameter 12.6157 um and HH channel
     auto soma = cell.add_soma(12.6157/2.0);
@@ -72,32 +72,42 @@ auto unique_cast(std::unique_ptr<B> p) {
 
 TEST(synapses, syn_basic_state) {
     using util::fill;
-    using value_type = multicore::backend::value_type;
-    using index_type = multicore::backend::index_type;
+    using value_type = fvm_value_type;
+    using index_type = fvm_index_type;
 
     int num_syn = 4;
     int num_comp = 4;
-    int num_cell = 1;
+    int num_intdom = 1;
 
-    auto expsyn = unique_cast<multicore::mechanism>(global_default_catalogue().instance<backend>("expsyn"));
+    value_type temp_K = *neuron_parameter_defaults.temperature_K;
+
+    auto expsyn = unique_cast<multicore::mechanism>(global_default_catalogue().instance<backend>("expsyn").mech);
     ASSERT_TRUE(expsyn);
 
-    auto exp2syn = unique_cast<multicore::mechanism>(global_default_catalogue().instance<backend>("exp2syn"));
+    auto exp2syn = unique_cast<multicore::mechanism>(global_default_catalogue().instance<backend>("exp2syn").mech);
     ASSERT_TRUE(exp2syn);
 
+    std::vector<fvm_gap_junction> gj = {};
     auto align = std::max(expsyn->data_alignment(), exp2syn->data_alignment());
-    shared_state state(num_cell, std::vector<index_type>(num_comp, 0), align);
 
-    state.reset(-65., constant::hh_squid_temp);
+    shared_state state(num_intdom,
+        std::vector<index_type>(num_comp, 0),
+        {},
+        std::vector<value_type>(num_comp, -65),
+        std::vector<value_type>(num_comp, temp_K),
+        align);
+
+    state.reset();
     fill(state.current_density, 1.0);
     fill(state.time_to, 0.1);
     state.set_dt();
 
     std::vector<index_type> syn_cv(num_syn, 0);
+    std::vector<index_type> syn_mult(num_syn, 1);
     std::vector<value_type> syn_weight(num_syn, 1.0);
 
-    expsyn->instantiate(0, state, {syn_cv, syn_weight});
-    exp2syn->instantiate(1, state, {syn_cv, syn_weight});
+    expsyn->instantiate(0, state, {}, {syn_cv, syn_weight, syn_mult});
+    exp2syn->instantiate(1, state, {}, {syn_cv, syn_weight, syn_mult});
 
     // Parameters initialized to default values?
 
@@ -129,10 +139,10 @@ TEST(synapses, syn_basic_state) {
 
     // Initialize state then check g, A, B have been set to zero.
 
-    expsyn->nrn_init();
+    expsyn->initialize();
     EXPECT_TRUE(all_equal_to(mechanism_field(expsyn, "g"), 0.));
 
-    exp2syn->nrn_init();
+    exp2syn->initialize();
     EXPECT_TRUE(all_equal_to(mechanism_field(exp2syn, "A"), 0.));
     EXPECT_TRUE(all_equal_to(mechanism_field(exp2syn, "B"), 0.));
 

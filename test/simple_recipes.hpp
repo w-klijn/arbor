@@ -6,7 +6,8 @@
 #include <vector>
 
 #include <arbor/event_generator.hpp>
-#include <arbor/mc_cell.hpp>
+#include <arbor/cable_cell.hpp>
+#include <arbor/cable_cell_param.hpp>
 #include <arbor/recipe.hpp>
 
 namespace arb {
@@ -20,6 +21,7 @@ public:
         catalogue_(global_default_catalogue())
     {
         cell_gprop_.catalogue = &catalogue_;
+        cell_gprop_.default_parameters = neuron_parameter_defaults;
     }
 
     cell_size_type num_probes(cell_gid_type i) const override {
@@ -39,7 +41,7 @@ public:
 
     util::any get_global_properties(cell_kind k) const override {
         switch (k) {
-        case cell_kind::cable1d_neuron:
+        case cell_kind::cable:
             return cell_gprop_;
         default:
             return util::any{};
@@ -50,9 +52,17 @@ public:
         return catalogue_;
     }
 
+    void add_ion(const std::string& ion_name, int charge, double init_iconc, double init_econc, double init_revpot) {
+        cell_gprop_.add_ion(ion_name, charge, init_iconc, init_econc, init_revpot);
+    }
+
+    void nernst_ion(const std::string& ion_name) {
+        cell_gprop_.default_parameters.reversal_potential_method[ion_name] = "nernst/"+ion_name;
+    }
+
 protected:
     std::unordered_map<cell_gid_type, std::vector<probe_info>> probes_;
-    mc_cell_global_properties cell_gprop_;
+    cable_cell_global_properties cell_gprop_;
     mechanism_catalogue catalogue_;
 };
 
@@ -84,7 +94,7 @@ protected:
     Description desc_;
 };
 
-// Recipe for a set of `cable1d_neuron` neurons without connections,
+// Recipe for a set of `cable` neurons without connections,
 // and probes which can be added by `add_probe()` (similar to above).
 //
 // Cell descriptions passed to the constructor are cloned.
@@ -92,19 +102,21 @@ protected:
 class cable1d_recipe: public simple_recipe_base {
 public:
     template <typename Seq>
-    explicit cable1d_recipe(const Seq& cells) {
+    explicit cable1d_recipe(const Seq& cells, bool coalesce = true) {
         for (const auto& c: cells) {
             cells_.emplace_back(c);
         }
+        cell_gprop_.coalesce_synapses = coalesce;
     }
 
-    explicit cable1d_recipe(const mc_cell& c) {
+    explicit cable1d_recipe(const cable_cell& c, bool coalesce = true) {
         cells_.reserve(1);
         cells_.emplace_back(c);
+        cell_gprop_.coalesce_synapses = coalesce;
     }
 
     cell_size_type num_cells() const override { return cells_.size(); }
-    cell_kind get_cell_kind(cell_gid_type) const override { return cell_kind::cable1d_neuron; }
+    cell_kind get_cell_kind(cell_gid_type) const override { return cell_kind::cable; }
 
     cell_size_type num_sources(cell_gid_type i) const override {
         return cells_.at(i).detectors().size();
@@ -115,13 +127,12 @@ public:
     }
 
     util::unique_any get_cell_description(cell_gid_type i) const override {
-        return util::make_unique_any<mc_cell>(cells_[i]);
+        return util::make_unique_any<cable_cell>(cells_[i]);
     }
 
 protected:
-    std::vector<mc_cell> cells_;
+    std::vector<cable_cell> cells_;
 };
-
 
 } // namespace arb
 

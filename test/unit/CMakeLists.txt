@@ -2,6 +2,23 @@
 
 set(test_mechanisms
     celsius_test
+    test_linear_state
+    test_linear_init
+    test_linear_init_shuffle
+    test0_kin_diff
+    test0_kin_conserve
+    test1_kin_diff
+    test1_kin_conserve
+    test0_kin_compartment
+    test1_kin_compartment
+    fixed_ica_current
+    point_ica_current
+    linear_ca_conc
+    test_cl_valence
+    test_ca_read_valence
+    read_eX
+    write_multiple_eX
+    write_eX
 )
 
 include(${PROJECT_SOURCE_DIR}/mechanisms/BuildModules.cmake)
@@ -17,7 +34,7 @@ build_modules(
     SOURCE_DIR mod
     DEST_DIR "${test_mech_dir}"
     ${external_modcc}
-    MODCC_FLAGS -t cpu -t gpu ${ARB_MODCC_FLAGS}
+    MODCC_FLAGS -t cpu -t gpu ${ARB_MODCC_FLAGS} -N testing
     GENERATES .hpp _cpu.cpp _gpu.cpp _gpu.cu
     TARGET build_test_mods
 )
@@ -56,25 +73,29 @@ set(unit_sources
     test_any.cpp
     test_backend.cpp
     test_double_buffer.cpp
+    test_dry_run_context.cpp
     test_compartments.cpp
     test_counter.cpp
     test_cycle.cpp
     test_domain_decomposition.cpp
     test_either.cpp
     test_event_binner.cpp
+    test_event_delivery.cpp
     test_event_generators.cpp
     test_event_queue.cpp
     test_filter.cpp
     test_fvm_layout.cpp
     test_fvm_lowered.cpp
+    test_glob_basic.cpp
     test_mc_cell_group.cpp
+    test_kinetic_linear.cpp
     test_lexcmp.cpp
     test_lif_cell_group.cpp
     test_maputil.cpp
     test_mask_stream.cpp
     test_math.cpp
     test_matrix.cpp
-    test_mc_cell.cpp
+    test_cable_cell.cpp
     test_mechanisms.cpp
     test_mech_temperature.cpp
     test_mechcat.cpp
@@ -82,6 +103,7 @@ set(unit_sources
     test_multi_event_stream.cpp
     test_optional.cpp
     test_mechinfo.cpp
+    test_morphology.cpp
     test_padded.cpp
     test_partition.cpp
     test_partition_by_constraint.cpp
@@ -93,16 +115,17 @@ set(unit_sources
     test_schedule.cpp
     test_spike_source.cpp
     test_local_context.cpp
+    test_scope_exit.cpp
     test_simd.cpp
     test_span.cpp
     test_spikes.cpp
     test_spike_store.cpp
-    test_spike_emitter.cpp
     test_stats.cpp
     test_strprintf.cpp
     test_swcio.cpp
     test_synapses.cpp
     test_thread.cpp
+    test_threading_exceptions.cpp
     test_tree.cpp
     test_transform.cpp
     test_uninitialized.cpp
@@ -136,9 +159,11 @@ if(ARB_WITH_CUDA)
     )
 endif()
 
-add_executable(unit ${unit_sources} ${test_mech_sources})
+add_executable(unit EXCLUDE_FROM_ALL ${unit_sources} ${test_mech_sources})
 add_dependencies(unit build_test_mods)
+add_dependencies(tests unit)
+
 target_compile_options(unit PRIVATE ${ARB_CXXOPT_ARCH})
 target_compile_definitions(unit PRIVATE "-DDATADIR=\"${CMAKE_CURRENT_SOURCE_DIR}/swc\"")
 target_include_directories(unit PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-target_link_libraries(unit PRIVATE gtest arbor arbor-private-headers arbor-aux)
+target_link_libraries(unit PRIVATE gtest arbor arbor-private-headers arbor-sup)

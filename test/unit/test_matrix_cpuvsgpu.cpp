@@ -69,27 +69,32 @@ TEST(matrix, assemble)
     //           6
     //            \.
     //             7
+    // p_3: 1 branch, 1 compartment
+    //
+    // 0
 
     // The parent indexes that define the two matrix structures
     std::vector<std::vector<I>>
-        p_base = { {0,0,1,2,2,4}, {0,0,1,2,3,3,2,6} };
+        p_base = { {0,0,1,2,2,4}, {0,0,1,2,3,3,2,6}, {0} };
 
     // Make a set of matrices based on repeating this pattern.
     // We assign the patterns round-robin, i.e. so that the input
     // matrices will have alternating sizes of 6 and 8, which will
     // test the solver with variable matrix size, and exercise
     // solvers that reorder matrices according to size.
-    const int num_mtx = 8;
+    const int num_mtx = 100;
 
     std::vector<I> p;
     std::vector<I> cell_index;
+    std::vector<I> intdom_index;
     for (auto m=0; m<num_mtx; ++m) {
-        auto &p_ref = p_base[m%2];
+        auto &p_ref = p_base[m%p_base.size()];
         auto first = p.size();
         for (auto i: p_ref) {
             p.push_back(i + first);
         }
         cell_index.push_back(first);
+        intdom_index.push_back(m);
     }
     cell_index.push_back(p.size());
 
@@ -109,8 +114,8 @@ TEST(matrix, assemble)
     std::vector<T> area(group_size, 1e3);
 
     // Make the reference matrix and the gpu matrix
-    auto m_mc  = mc_state( p, cell_index, Cm, g, area); // on host
-    auto m_gpu = gpu_state(p, cell_index, Cm, g, area); // on gpu
+    auto m_mc  = mc_state( p, cell_index, Cm, g, area, intdom_index); // on host
+    auto m_gpu = gpu_state(p, cell_index, Cm, g, area, intdom_index); // on gpu
 
     // Set the integration times for the cells to be between 0.1 and 0.2 ms.
     std::vector<T> dt(num_mtx);
@@ -118,10 +123,10 @@ TEST(matrix, assemble)
     auto dt_dist = std::uniform_real_distribution<T>(0.1, 0.2);
     std::generate(dt.begin(), dt.end(), [&](){return dt_dist(gen);});
 
-    // Voltage and current values
-    m_mc.assemble(host_array(dt.begin(), dt.end()), host_array(group_size, -64), host_array(group_size, 10));
+    // Voltage, current, and conductance values
+    m_mc.assemble(host_array(dt.begin(), dt.end()), host_array(group_size, -64), host_array(group_size, 10), host_array(group_size, 3));
     m_mc.solve();
-    m_gpu.assemble(on_gpu(dt), gpu_array(group_size, -64), gpu_array(group_size, 10));
+    m_gpu.assemble(on_gpu(dt), gpu_array(group_size, -64), gpu_array(group_size, 10), gpu_array(group_size, 3));
     m_gpu.solve();
 
     // Compare the GPU and CPU results.

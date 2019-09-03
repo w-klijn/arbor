@@ -54,8 +54,23 @@ memory::const_device_view<T> device_view(const T* ptr, std::size_t n) {
 
 void mechanism::instantiate(unsigned id,
                             backend::shared_state& shared,
-                            const layout& pos_data)
+                            const mechanism_overrides& overrides,
+                            const mechanism_layout& pos_data)
 {
+    // Assign global scalar parameters:
+
+    for (auto &kv: overrides.globals) {
+        if (auto opt_ptr = value_by_key(global_table(), kv.first)) {
+            // Take reference to corresponding derived (generated) mechanism value member.
+            value_type& global = *opt_ptr.value();
+            global = kv.second;
+        }
+        else {
+            throw arbor_internal_error("multicore/mechanism: no such mechanism global");
+        }
+    }
+
+    mult_in_place_ = !pos_data.multiplicity.empty();
     mechanism_id_ = id;
     width_ = pos_data.cv.size();
 
@@ -68,13 +83,14 @@ void mechanism::instantiate(unsigned id,
 
     pp->width_ = width_;
 
-    pp->vec_ci_   = shared.cv_to_cell.data();
+    pp->vec_ci_   = shared.cv_to_intdom.data();
     pp->vec_t_    = shared.time.data();
     pp->vec_t_to_ = shared.time_to.data();
     pp->vec_dt_   = shared.dt_cv.data();
 
     pp->vec_v_    = shared.voltage.data();
     pp->vec_i_    = shared.current_density.data();
+    pp->vec_g_    = shared.conductivity.data();
 
     pp->temperature_degC_ = shared.temperature_degC.data();
 
@@ -82,7 +98,9 @@ void mechanism::instantiate(unsigned id,
     num_ions_ = ion_state_tbl.size();
 
     for (auto i: ion_state_tbl) {
-        util::optional<ion_state&> oion = value_by_key(shared.ion_data, i.first);
+        auto ion_binding = value_by_key(overrides.ion_rebind, i.first).value_or(i.first);
+
+        util::optional<ion_state&> oion = value_by_key(shared.ion_data, ion_binding);
         if (!oion) {
             throw arbor_internal_error("gpu/mechanism: mechanism holds ion with no corresponding shared state");
         }
@@ -92,6 +110,7 @@ void mechanism::instantiate(unsigned id,
         ion_view.reversal_potential = oion->eX_.data();
         ion_view.internal_concentration = oion->Xi_.data();
         ion_view.external_concentration = oion->Xo_.data();
+        ion_view.ionic_charge = oion->charge.data();
     }
 
     event_stream_ptr_ = &shared.deliverable_events;
@@ -122,9 +141,10 @@ void mechanism::instantiate(unsigned id,
     }
 
     // Allocate and initialize index vectors, viz. node_index_ and any ion indices.
-    // (First sub-array of indices_ is used for node_index_.)
+    // (First sub-array of indices_ is used for node_index_, last sub-array used for multiplicity_ if it is not empty)
 
-    indices_ = iarray((1+num_ions_)*width_padded_);
+    size_type num_elements = mult_in_place_ ? 2 + num_ions_ : 1 + num_ions_;
+    indices_ = iarray((num_elements)*width_padded_);
 
     memory::copy(make_const_view(pos_data.cv), device_view(indices_.data(), width_));
     pp->node_index_ = indices_.data();
@@ -133,7 +153,9 @@ void mechanism::instantiate(unsigned id,
     arb_assert(num_ions_==ion_index_tbl.size());
 
     for (auto i: make_span(0, num_ions_)) {
-        util::optional<ion_state&> oion = value_by_key(shared.ion_data, ion_index_tbl[i].first);
+        auto ion_binding = value_by_key(overrides.ion_rebind, ion_index_tbl[i].first).value_or(ion_index_tbl[i].first);
+
+        util::optional<ion_state&> oion = value_by_key(shared.ion_data, ion_binding);
         if (!oion) {
             throw arbor_internal_error("gpu/mechanism: mechanism holds ion with no corresponding shared state");
         }
@@ -147,6 +169,11 @@ void mechanism::instantiate(unsigned id,
         auto index_start = indices_.data()+(i+1)*width_padded_;
         ion_index_ptr = index_start;
         memory::copy(make_const_view(mech_ion_index), device_view(index_start, width_));
+    }
+
+    if (mult_in_place_) {
+        memory::copy(make_const_view(pos_data.multiplicity), device_view(indices_.data() + width_padded_, width_));
+        pp->multiplicity_ = indices_.data() + (num_ions_ + 1)*width_padded_;
     }
 }
 
@@ -167,16 +194,20 @@ void mechanism::set_parameter(const std::string& key, const std::vector<fvm_valu
     }
 }
 
-void mechanism::set_global(const std::string& key, fvm_value_type value) {
-    if (auto opt_ptr = value_by_key(global_table(), key)) {
-        // Take reference to corresponding derived (generated) mechanism value member.
-        value_type& global = *opt_ptr.value();
-        global = value;
-    }
-    else {
-        throw arbor_internal_error("gpu/mechanism: no such mechanism global");
+void multiply_in_place(fvm_value_type* s, const fvm_index_type* p, int n);
+
+void mechanism::initialize() {
+    nrn_init();
+    mechanism_ppack_base* pp = ppack_ptr();
+    auto states = state_table();
+
+    if(mult_in_place_) {
+        for (auto& state: states) {
+            multiply_in_place(*state.second, pp->multiplicity_, pp->width_);
+        }
     }
 }
+
 
 } // namespace multicore
 } // namespace arb

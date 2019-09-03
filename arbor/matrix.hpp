@@ -35,10 +35,12 @@ public:
            const std::vector<index_type>& ci,
            const std::vector<value_type>& cv_capacitance,
            const std::vector<value_type>& face_conductance,
-           const std::vector<value_type>& cv_area):
+           const std::vector<value_type>& cv_area,
+           const std::vector<index_type>& cell_to_intdom):
         parent_index_(pi.begin(), pi.end()),
         cell_index_(ci.begin(), ci.end()),
-        state_(pi, ci, cv_capacitance, face_conductance, cv_area)
+        cell_to_intdom_(cell_to_intdom.begin(), cell_to_intdom.end()),
+        state_(pi, ci, cv_capacitance, face_conductance, cv_area, cell_to_intdom)
     {
         arb_assert(cell_index_[num_cells()] == index_type(parent_index_.size()));
     }
@@ -65,8 +67,8 @@ public:
     }
 
     /// Assemble the matrix for given dt
-    void assemble(const array& dt_cell, const array& voltage, const array& current) {
-        state_.assemble(dt_cell, voltage, current);
+    void assemble(const array& dt_cell, const array& voltage, const array& current, const array& conductivity) {
+        state_.assemble(dt_cell, voltage, current, conductivity);
     }
 
     /// Get a view of the solution
@@ -80,6 +82,9 @@ private:
 
     /// indexes that point to the start of each cell in the index
     iarray cell_index_;
+
+    /// indexes that point to the index of the integration domain
+    iarray cell_to_intdom_;
 
 public:
     // Provide via public interface to make testing much easier.

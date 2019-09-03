@@ -61,29 +61,46 @@ void copy_extend(const Source& source, Dest&& dest, const Fill& fill) {
 // these past-the-end values are given a weight of zero, and any corresponding
 // indices into shared state point to the last valid slot.
 
-void mechanism::instantiate(unsigned id, backend::shared_state& shared, const layout& pos_data) {
+void mechanism::instantiate(unsigned id, backend::shared_state& shared, const mechanism_overrides& overrides, const mechanism_layout& pos_data) {
     using util::make_range;
 
+    // Assign global scalar parameters:
+
+    for (auto &kv: overrides.globals) {
+        if (auto opt_ptr = value_by_key(global_table(), kv.first)) {
+            // Take reference to corresponding derived (generated) mechanism value member.
+            value_type& global = *opt_ptr.value();
+            global = kv.second;
+        }
+        else {
+            throw arbor_internal_error("multicore/mechanism: no such mechanism global");
+        }
+    }
+
+    mult_in_place_ = !pos_data.multiplicity.empty();
     util::padded_allocator<> pad(shared.alignment);
     mechanism_id_ = id;
     width_ = pos_data.cv.size();
 
     // Assign non-owning views onto shared state:
 
-    vec_ci_   = shared.cv_to_cell.data();
+    vec_ci_   = shared.cv_to_intdom.data();
     vec_t_    = shared.time.data();
     vec_t_to_ = shared.time_to.data();
     vec_dt_   = shared.dt_cv.data();
 
     vec_v_    = shared.voltage.data();
     vec_i_    = shared.current_density.data();
+    vec_g_    = shared.conductivity.data();
 
-    temperature_degC_ = &shared.temperature_degC;
+    temperature_degC_ = shared.temperature_degC.data();
 
     auto ion_state_tbl = ion_state_table();
     n_ion_ = ion_state_tbl.size();
     for (auto i: ion_state_tbl) {
-        util::optional<ion_state&> oion = value_by_key(shared.ion_data, i.first);
+        auto ion_binding = value_by_key(overrides.ion_rebind, i.first).value_or(i.first);
+
+        util::optional<ion_state&> oion = value_by_key(shared.ion_data, ion_binding);
         if (!oion) {
             throw arbor_internal_error("multicore/mechanism: mechanism holds ion with no corresponding shared state");
         }
@@ -93,6 +110,7 @@ void mechanism::instantiate(unsigned id, backend::shared_state& shared, const la
         ion_view.reversal_potential = oion->eX_.data();
         ion_view.internal_concentration = oion->Xi_.data();
         ion_view.external_concentration = oion->Xo_.data();
+        ion_view.ionic_charge = oion->charge.data();
     }
 
     event_stream_ptr_ = &shared.deliverable_events;
@@ -131,12 +149,20 @@ void mechanism::instantiate(unsigned id, backend::shared_state& shared, const la
     // * For indices in the padded tail of ion index maps, set index to last valid ion index.
 
     node_index_ = iarray(width_padded_, pad);
+
     copy_extend(pos_data.cv, node_index_, pos_data.cv.back());
     copy_extend(pos_data.weight, make_range(data_.data(), data_.data()+width_padded_), 0);
     index_constraints_ = make_constraint_partition(node_index_, width_, simd_width);
 
+    if (mult_in_place_) {
+        multiplicity_ = iarray(width_padded_, pad);
+        copy_extend(pos_data.multiplicity, multiplicity_, 1);
+    }
+
     for (auto i: ion_index_table()) {
-        util::optional<ion_state&> oion = value_by_key(shared.ion_data, i.first);
+        auto ion_binding = value_by_key(overrides.ion_rebind, i.first).value_or(i.first);
+
+        util::optional<ion_state&> oion = value_by_key(shared.ion_data, ion_binding);
         if (!oion) {
             throw arbor_internal_error("multicore/mechanism: mechanism holds ion with no corresponding shared state");
         }
@@ -150,7 +176,6 @@ void mechanism::instantiate(unsigned id, backend::shared_state& shared, const la
 
         arb_assert(compatible_index_constraints(node_index_, ion_index, simd_width));
     }
-
 }
 
 void mechanism::set_parameter(const std::string& key, const std::vector<fvm_value_type>& values) {
@@ -172,14 +197,17 @@ void mechanism::set_parameter(const std::string& key, const std::vector<fvm_valu
     }
 }
 
-void mechanism::set_global(const std::string& key, fvm_value_type value) {
-    if (auto opt_ptr = value_by_key(global_table(), key)) {
-        // Take reference to corresponding derived (generated) mechanism value member.
-        value_type& global = *opt_ptr.value();
-        global = value;
-    }
-    else {
-        throw arbor_internal_error("multicore/mechanism: no such mechanism global");
+void mechanism::initialize() {
+    nrn_init();
+
+    auto states = state_table();
+
+    if (mult_in_place_) {
+        for (auto& state: states) {
+            for (std::size_t j = 0; j < width_; ++j) {
+                (*state.second)[j] *= multiplicity_[j];
+            }
+        }
     }
 }
 
